@@ -66,7 +66,7 @@ body {
 }
 
 .app-sidebar-window-controls {
-  flex: 0 0 42px;
+  flex: 0 0 16px;
 }
 
 .app-sidebar-brand {
@@ -88,6 +88,19 @@ body {
   font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: #21252c;
+}
+
+.app-sidebar-github-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  color: #535a63;
+  transition: color 0.15s ease;
+}
+
+.app-sidebar-github-link:hover {
   color: #21252c;
 }
 

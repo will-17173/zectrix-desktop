@@ -32,6 +32,8 @@ pub fn run() {
             commands::images::push_image_template,
             commands::images::delete_image_template,
             commands::images::push_sketch,
+        commands::updater::check_for_update,
+            commands::updater::get_current_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

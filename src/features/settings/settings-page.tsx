@@ -1,6 +1,8 @@
-import { FormEvent, useState } from "react";
-import { type ApiKeyRecord, type DeviceRecord } from "../../lib/tauri";
+import { FormEvent, useEffect, useState } from "react";
+import { type ApiKeyRecord, type DeviceRecord, checkForUpdate, getCurrentVersion, type UpdateInfo } from "../../lib/tauri";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { BilibiliIcon, HeartIcon } from "../../components/layout/app-sidebar";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 type SettingsPageProps = {
   apiKeys: ApiKeyRecord[];
@@ -31,6 +33,35 @@ export function SettingsPage({
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [showApiKeyForm, setShowApiKeyForm] = useState(initialApiKeys.length === 0);
   const [showDeviceForm, setShowDeviceForm] = useState(initialDevices.length === 0);
+  const [currentVersion, setCurrentVersion] = useState<string>("");
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  // 加载当前版本
+  useEffect(() => {
+    getCurrentVersion().then(setCurrentVersion);
+  }, []);
+
+  async function handleCheckUpdate() {
+    setCheckingUpdate(true);
+    setUpdateError(null);
+    setUpdateInfo(null);
+    try {
+      const info = await checkForUpdate();
+      setUpdateInfo(info);
+    } catch (e) {
+      setUpdateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }
+
+  async function handleOpenRelease() {
+    if (updateInfo?.release_url) {
+      await openUrl(updateInfo.release_url);
+    }
+  }
 
   async function handleAddApiKey(event: FormEvent) {
     event.preventDefault();
@@ -100,8 +131,9 @@ export function SettingsPage({
   };
 
   return (
-    <section className="p-4 space-y-8">
-      <div>
+    <section className="p-4 flex flex-col min-h-full">
+      <div className="flex-1 space-y-8">
+        <div>
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="text-xl font-semibold">API Key 管理</h2>
           {!showApiKeyForm && (
@@ -261,6 +293,59 @@ export function SettingsPage({
           ))}
         </ul>
       </div>
+
+      {/* 关于 / 更新检测 */}
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold mb-4">关于</h2>
+        <div className="flex items-center gap-4">
+          <div className="text-sm">
+            <span className="text-gray-500">当前版本：</span>
+            <span className="font-mono">{currentVersion || "加载中..."}</span>
+          </div>
+          <button
+            onClick={handleCheckUpdate}
+            disabled={checkingUpdate}
+            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {checkingUpdate ? "检查中..." : "检查更新"}
+          </button>
+        </div>
+        {updateError && (
+          <p role="alert" className="text-red-600 text-sm mt-2">{updateError}</p>
+        )}
+        {updateInfo && (
+          <div className="mt-3 p-3 border border-gray-200 rounded-md dark:border-gray-700">
+            {updateInfo.has_update ? (
+              <div className="flex items-center gap-3">
+                <span className="text-green-600 font-medium">发现新版本 v{updateInfo.latest_version}</span>
+                <button
+                  onClick={handleOpenRelease}
+                  className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 underline"
+                >
+                  前往 GitHub Release 页面下载
+                </button>
+              </div>
+            ) : (
+              <span className="text-gray-500">已是最新版本</span>
+            )}
+          </div>
+        )}
+      </div>
+      </div>
+
+      <footer className="pt-4 pb-2 flex justify-center items-center gap-2 text-gray-500 text-sm">
+        <HeartIcon size={16} />
+        Made by
+        <a
+          href="https://space.bilibili.com/328381287"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 hover:text-gray-700 transition-colors"
+        >
+          <BilibiliIcon size={16} />
+          <span>Terminator-AI</span>
+        </a>
+      </footer>
     </section>
   );
 }

@@ -175,3 +175,19 @@ export async function pushText(
 ): Promise<void> {
   return invoke("push_text", { text, fontSize, deviceId, pageId });
 }
+
+export type UpdateInfo = {
+  current_version: string;
+  latest_version: string;
+  has_update: boolean;
+  release_url: string;
+  release_notes: string | null;
+};
+
+export async function checkForUpdate(): Promise<UpdateInfo> {
+  return invoke<UpdateInfo>("check_for_update");
+}
+
+export async function getCurrentVersion(): Promise<string> {
+  return invoke<string>("get_current_version");
+}
