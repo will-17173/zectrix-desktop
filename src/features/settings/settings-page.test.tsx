@@ -95,3 +95,26 @@ test("adds a device with the selected api key from the shared ui select", async 
 
   expect(addDeviceCache).toHaveBeenCalledWith("AA:BB:CC:DD:EE:FF", 1);
 });
+
+test("shows error when removing API key with associated devices", async () => {
+  const user = userEvent.setup();
+  const removeApiKeyWithError = vi.fn().mockRejectedValue(new Error("该 API Key 有关联设备，请先删除关联设备"));
+
+  render(
+    <SettingsPage
+      apiKeys={[{ id: 1, name: "已有 Key", key: "zt_existing", createdAt: "2026-04-23T00:00:00Z" }]}
+      devices={[{ deviceId: "AA:BB:CC:DD:EE:FF", alias: "Test Device", board: "board", cachedAt: "2026-04-23T00:00:00Z", apiKeyId: 1 }]}
+      onAddApiKey={addApiKey}
+      onRemoveApiKey={removeApiKeyWithError}
+      onAddDevice={addDeviceCache}
+      onRemoveDevice={removeDeviceCache}
+    />
+  );
+
+  // Click the delete button in the API Key section (first delete button)
+  const deleteButtons = screen.getAllByRole("button", { name: "删除" });
+  await user.click(deleteButtons[0]);
+
+  expect(removeApiKeyWithError).toHaveBeenCalledWith(1);
+  expect(screen.getByRole("alert")).toHaveTextContent("该 API Key 有关联设备，请先删除关联设备");
+});

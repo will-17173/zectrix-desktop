@@ -13,7 +13,6 @@ import {
   addApiKey,
   removeApiKey,
   createLocalTodo,
-  createTextTemplate,
   deleteLocalTodo,
   deleteImageTemplate,
   getImageThumbnail,
@@ -21,7 +20,6 @@ import {
   pushImageTemplate,
   pushSketch,
   pushText,
-  pushTextTemplate,
   pushTodoToDevice,
   removeDeviceCache,
   saveImageTemplate,
@@ -132,14 +130,8 @@ export default function App() {
     if (path === "/text-push") {
       return (
         <TextTemplatesPage
-          templates={state.textTemplates}
           devices={state.devices}
-          onCreateTemplate={async (input) => {
-            const t = await createTextTemplate(input);
-            reload();
-            return t;
-          }}
-          onPushTemplate={pushTextTemplate}
+          onPushText={pushText}
         />
       );
     }
@@ -206,7 +198,7 @@ export default function App() {
             title={title}
             syncState={syncState}
             syncMessage={syncMessage}
-            onSync={hasApiKey ? handleSync : undefined}
+            onSync={hasApiKey && path !== "/text-push" ? handleSync : undefined}
           />
           <section className="app-canvas" aria-label="主内容画布">
             {renderContent()}

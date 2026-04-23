@@ -27,14 +27,15 @@ export function SettingsPage({
   const [deviceId, setDeviceId] = useState("");
   const [selectedApiKey, setSelectedApiKey] = useState("");
   const [devices, setDevices] = useState<DeviceRecord[]>(initialDevices);
-  const [error, setError] = useState<string | null>(null);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
   const [showApiKeyForm, setShowApiKeyForm] = useState(initialApiKeys.length === 0);
   const [showDeviceForm, setShowDeviceForm] = useState(initialDevices.length === 0);
 
   async function handleAddApiKey(event: FormEvent) {
     event.preventDefault();
     if (!apiKeyName.trim() || !apiKeyValue.trim()) {
-      setError("请填写名称和 API Key");
+      setApiKeyError("请填写名称和 API Key");
       return;
     }
     try {
@@ -43,25 +44,30 @@ export function SettingsPage({
       setApiKeyName("");
       setApiKeyValue("");
       setShowApiKeyForm(false);
-      setError(null);
+      setApiKeyError(null);
     } catch (e) {
-      setError(String(e));
+      setApiKeyError(String(e));
     }
   }
 
   async function handleRemoveApiKey(id: number) {
-    await onRemoveApiKey(id);
-    setApiKeys((prev) => prev.filter((k) => k.id !== id));
+    try {
+      await onRemoveApiKey(id);
+      setApiKeys((prev) => prev.filter((k) => k.id !== id));
+      setApiKeyError(null);
+    } catch (e) {
+      setApiKeyError(String(e));
+    }
   }
 
   async function handleAddDevice() {
     if (!selectedApiKey) {
-      setError("请先选择 API Key");
+      setDeviceError("请先选择 API Key");
       return;
     }
     const normalized = deviceId.trim().toUpperCase();
     if (!macPattern.test(normalized)) {
-      setError("MAC 地址格式错误");
+      setDeviceError("MAC 地址格式错误");
       return;
     }
     try {
@@ -70,9 +76,9 @@ export function SettingsPage({
       setDeviceId("");
       setSelectedApiKey("");
       setShowDeviceForm(false);
-      setError(null);
+      setDeviceError(null);
     } catch (e) {
-      setError(String(e));
+      setDeviceError(String(e));
     }
   }
 
@@ -169,6 +175,7 @@ export function SettingsPage({
             </li>
           ))}
         </ul>
+        {apiKeyError && <p role="alert" className="text-red-600 text-sm mt-2">{apiKeyError}</p>}
       </div>
 
       <div>
@@ -232,10 +239,10 @@ export function SettingsPage({
                 </button>
               )}
             </div>
-            {error && <p role="alert" className="text-red-600 text-sm">{error}</p>}
+            {deviceError && <p role="alert" className="text-red-600 text-sm">{deviceError}</p>}
           </div>
         ) : (
-          error ? <p role="alert" className="text-red-600 text-sm">{error}</p> : null
+          deviceError ? <p role="alert" className="text-red-600 text-sm">{deviceError}</p> : null
         )}
 
         <ul className="mt-6 space-y-2 max-w-[648px]">

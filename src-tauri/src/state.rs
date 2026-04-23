@@ -268,6 +268,12 @@ impl AppState {
     }
 
     pub fn remove_api_key(&self, id: i64) -> anyhow::Result<()> {
+        // 检查是否有设备关联此 API Key
+        let devices: Vec<DeviceRecord> = load_json(&self.data_dir.join("devices.json"))?;
+        if devices.iter().any(|d| d.api_key_id == id) {
+            anyhow::bail!("该 API Key 有关联设备，请先删除关联设备");
+        }
+
         let path = self.data_dir.join("api_keys.json");
         let mut api_keys: Vec<ApiKeyRecord> = load_json(&path)?;
         api_keys.retain(|k| k.id != id);
@@ -311,6 +317,15 @@ impl AppState {
     }
 
     pub fn remove_device_cache(&self, device_id: &str) -> anyhow::Result<()> {
+        // 删除关联该设备的所有 todo
+        let todos_path = self.data_dir.join("todos.json");
+        if todos_path.exists() {
+            let mut todos = self.load_todos()?;
+            todos.retain(|t| t.device_id.as_deref() != Some(device_id));
+            save_json(&todos_path, &todos)?;
+        }
+
+        // 删除设备缓存
         let path = self.data_dir.join("devices.json");
         let mut devices: Vec<DeviceRecord> = load_json(&path)?;
         devices.retain(|d| !d.device_id.eq_ignore_ascii_case(device_id));
@@ -1261,5 +1276,110 @@ mod tests {
         );
 
         assert!(merged.is_empty());
+    }
+
+    #[test]
+    fn remove_api_key_fails_when_device_associated() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        // 创建 API Key 和设备文件
+        save_json(
+            &dir.path().join("api_keys.json"),
+            &vec![ApiKeyRecord {
+                id: 1,
+                name: "Test Key".into(),
+                key: "zt_test".into(),
+                created_at: "2026-04-23T09:00:00Z".into(),
+            }],
+        )
+        .unwrap();
+
+        save_json(
+            &dir.path().join("devices.json"),
+            &vec![DeviceRecord {
+                device_id: "AA:BB:CC:DD:EE:FF".into(),
+                alias: "Test Device".into(),
+                board: "board".into(),
+                cached_at: "2026-04-23T09:00:00Z".into(),
+                api_key_id: 1,
+            }],
+        )
+        .unwrap();
+
+        // 尝试删除有设备关联的 API Key
+        let result = state.remove_api_key(1);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("关联设备"));
+    }
+
+    #[test]
+    fn remove_api_key_succeeds_when_no_device_associated() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        // 创建 API Key 文件（无设备）
+        save_json(
+            &dir.path().join("api_keys.json"),
+            &vec![ApiKeyRecord {
+                id: 1,
+                name: "Test Key".into(),
+                key: "zt_test".into(),
+                created_at: "2026-04-23T09:00:00Z".into(),
+            }],
+        )
+        .unwrap();
+
+        save_json(&dir.path().join("devices.json"), &vec![] as &Vec<DeviceRecord>).unwrap();
+
+        // 删除无设备关联的 API Key 应成功
+        state.remove_api_key(1).unwrap();
+
+        let api_keys: Vec<ApiKeyRecord> = load_json(&dir.path().join("api_keys.json")).unwrap();
+        assert!(api_keys.is_empty());
+    }
+
+    #[test]
+    fn remove_device_cache_deletes_associated_todos() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        // 创建设备文件
+        save_json(
+            &dir.path().join("devices.json"),
+            &vec![DeviceRecord {
+                device_id: "AA:BB:CC:DD:EE:FF".into(),
+                alias: "Test Device".into(),
+                board: "board".into(),
+                cached_at: "2026-04-23T09:00:00Z".into(),
+                api_key_id: 1,
+            }],
+        )
+        .unwrap();
+
+        // 创建 todo 文件，包含关联该设备的 todo
+        let mut todo1 = make_local_todo("local-a", None, 0, true);
+        todo1.device_id = Some("AA:BB:CC:DD:EE:FF".into());
+        let mut todo2 = make_local_todo("local-b", None, 0, true);
+        todo2.device_id = Some("BB:BB:BB:BB:BB:BB".into()); // 其他设备
+        let todo3 = make_local_todo("local-c", None, 0, true); // 无设备
+
+        save_json(
+            &dir.path().join("todos.json"),
+            &vec![todo1, todo2, todo3],
+        )
+        .unwrap();
+
+        // 删除设备
+        state.remove_device_cache("AA:BB:CC:DD:EE:FF").unwrap();
+
+        // 验证设备已删除
+        let devices: Vec<DeviceRecord> = load_json(&dir.path().join("devices.json")).unwrap();
+        assert!(devices.is_empty());
+
+        // 验证关联该设备的 todo 已删除，其他 todo 保留
+        let todos = state.load_todos().unwrap();
+        assert_eq!(todos.len(), 2);
+        assert!(todos.iter().all(|t| t.device_id != Some("AA:BB:CC:DD:EE:FF".into())));
     }
 }
