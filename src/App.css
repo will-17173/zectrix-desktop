@@ -1,0 +1,314 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "ShareTechMono";
+  src: url("./assets/fonts/ShareTechMono-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "MonuTitl";
+  src: url("./assets/fonts/MonuTitl-0.95CnMd.woff2") format("truetype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+:root {
+  font-family: "ShareTechMono", "MonuTitl", "SF Pro Display", "PingFang SC", "Noto Sans SC", sans-serif;
+  color: #1f2329;
+  background: #f5f3ee;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+html.theme-shell,
+html.theme-shell body,
+html.theme-shell #root {
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.92), transparent 28%),
+    linear-gradient(180deg, #f8f6f1 0%, #f2efe8 100%);
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  height: 100%;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  height: 100%;
+}
+
+.app-sidebar {
+  padding: 0 14px 18px 18px;
+  background: rgba(251, 250, 247, 0.8);
+  border-right: 1px solid rgba(36, 42, 49, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.app-sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  height: 100%;
+}
+
+.app-sidebar-window-controls {
+  flex: 0 0 42px;
+}
+
+.app-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.app-sidebar-brand-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #2d3138 0%, #60656d 100%);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.18);
+}
+
+.app-sidebar-brand-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #21252c;
+}
+
+.app-sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.app-sidebar-footer {
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.app-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 14px;
+  color: #535a63;
+  text-decoration: none;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.app-nav-link:hover {
+  background: rgba(36, 42, 49, 0.05);
+  color: #1f2329;
+}
+
+.app-nav-link.is-active {
+  background: rgba(255, 255, 255, 0.88);
+  color: #1f2329;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.8),
+    0 8px 24px rgba(30, 35, 40, 0.06);
+}
+
+.app-main {
+  padding: 20px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.app-main-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: 28px;
+  border: 1px solid rgba(39, 44, 52, 0.08);
+  background: rgba(252, 251, 248, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.app-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px 14px;
+}
+
+.app-toolbar-actions {
+}
+
+.app-toolbar-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.app-toolbar-kicker {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #878d96;
+}
+
+.app-toolbar-title {
+  margin: 0;
+  font-size: 1.7rem;
+  line-height: 1.1;
+  font-weight: 560;
+  letter-spacing: -0.035em;
+  color: #181c22;
+}
+
+.app-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-toolbar-action,
+.sync-indicator,
+.sync-feedback {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(36, 42, 49, 0.1);
+  background: rgba(255, 255, 255, 0.86);
+  font: inherit;
+}
+
+.app-toolbar-action {
+  color: #252a31;
+  cursor: pointer;
+  transition: transform 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.app-toolbar-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(30, 35, 40, 0.08);
+}
+
+.sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  color: #5f6670;
+}
+
+.sync-feedback {
+  display: inline-flex;
+  align-items: center;
+  color: #4c5663;
+  background: rgba(247, 244, 236, 0.92);
+}
+
+.sync-indicator[data-state="syncing"] {
+  color: #4d678a;
+}
+
+.sync-indicator[data-state="success"] {
+  color: #42624d;
+}
+
+.sync-indicator[data-state="error"] {
+  color: #8b5252;
+}
+
+.sync-indicator[data-state="offline"] {
+  color: #8a6543;
+}
+
+.sync-feedback[data-state="success"] {
+  color: #42624d;
+}
+
+.sync-feedback[data-state="error"] {
+  color: #8b5252;
+}
+
+.sync-feedback[data-state="offline"] {
+  color: #8a6543;
+}
+
+.app-toolbar-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+  background: rgba(240, 238, 232, 0.9);
+  color: #7a8088;
+}
+
+.app-canvas {
+  flex: 1;
+  min-height: 0;
+  margin: 0 18px 18px;
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid rgba(39, 44, 52, 0.06);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 18px 40px rgba(32, 37, 41, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 自定义滚动条样式 */
+.app-canvas::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-canvas::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px;
+}
+
+.app-canvas::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(200, 195, 185, 0.4) 0%, rgba(170, 165, 155, 0.35) 100%);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.app-canvas::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(180, 175, 165, 0.55) 0%, rgba(150, 145, 135, 0.5) 100%);
+}
+
+.app-canvas::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, rgba(160, 155, 145, 0.65) 0%, rgba(130, 125, 115, 0.6) 100%);
+}
+
+/* 滚动时显示微妙阴影 */
+.app-canvas.scrolling {
+  box-shadow:
+    0 18px 40px rgba(32, 37, 41, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset -4px 0 12px rgba(40, 35, 30, 0.03);
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+
+  .app-main {
+    padding: 14px;
+  }
+}
