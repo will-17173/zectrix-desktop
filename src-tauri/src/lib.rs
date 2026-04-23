@@ -25,10 +25,13 @@ pub fn run() {
             commands::todos::push_todo_to_device,
             commands::templates::create_text_template,
             commands::templates::push_text_template,
+            commands::templates::push_text,
             commands::images::render_image_preview,
             commands::images::save_image_template,
             commands::images::get_image_thumbnail,
             commands::images::push_image_template,
+            commands::images::delete_image_template,
+            commands::images::push_sketch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

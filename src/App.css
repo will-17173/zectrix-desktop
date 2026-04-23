@@ -122,11 +122,13 @@ body {
 }
 
 .app-nav-link.is-active {
-  background: rgba(255, 255, 255, 0.88);
-  color: #1f2329;
+  background: rgba(255, 255, 255, 0.96);
+  color: #181c22;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.8),
-    0 8px 24px rgba(30, 35, 40, 0.06);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.95),
+    0 2px 8px rgba(30, 35, 40, 0.04),
+    0 8px 24px rgba(30, 35, 40, 0.08);
+  border: 1px solid rgba(36, 42, 49, 0.08);
 }
 
 .app-main {

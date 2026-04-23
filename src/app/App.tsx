@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { AppSidebar } from "../components/layout/app-sidebar";
 import { AppToolbar } from "../components/layout/app-toolbar";
+import { FreeLayoutPage } from "../features/free-layout/free-layout-page";
 import { ImageTemplatesPage } from "../features/images/image-templates-page";
 import { SettingsPage } from "../features/settings/settings-page";
+import { SketchPage } from "../features/sketch/sketch-page";
 import { TextTemplatesPage } from "../features/templates/text-templates-page";
 import { TodoListPage } from "../features/todos/todo-list-page";
 import {
@@ -13,9 +15,12 @@ import {
   createLocalTodo,
   createTextTemplate,
   deleteLocalTodo,
+  deleteImageTemplate,
   getImageThumbnail,
   loadBootstrapState,
   pushImageTemplate,
+  pushSketch,
+  pushText,
   pushTextTemplate,
   pushTodoToDevice,
   removeDeviceCache,
@@ -38,7 +43,9 @@ const emptyState: BootstrapState = {
 
 const sectionTitles: Record<string, string> = {
   "/": "待办事项",
+  "/sketch-push": "涂鸦推送",
   "/image-push": "图片推送",
+  "/free-layout": "自由排版",
   "/text-push": "文本推送",
   "/settings": "设置",
 };
@@ -149,7 +156,29 @@ export default function App() {
           onPushTemplate={(templateId, deviceId, pageId) =>
             pushImageTemplate(templateId, deviceId, pageId)
           }
+          onDeleteTemplate={async (templateId) => {
+            await deleteImageTemplate(templateId);
+            reload();
+          }}
           onLoadThumbnail={getImageThumbnail}
+        />
+      );
+    }
+    if (path === "/sketch-push") {
+      return (
+        <SketchPage
+          devices={state.devices}
+          onPushSketch={(dataUrl, deviceId, pageId) =>
+            pushSketch(dataUrl, deviceId, pageId)
+          }
+        />
+      );
+    }
+    if (path === "/free-layout") {
+      return (
+        <FreeLayoutPage
+          devices={state.devices}
+          onPushText={pushText}
         />
       );
     }

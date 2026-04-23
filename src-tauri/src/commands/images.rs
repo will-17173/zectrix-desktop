@@ -34,3 +34,24 @@ pub async fn push_image_template(
         .await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn delete_image_template(
+    state: tauri::State<'_, crate::state::AppState>,
+    template_id: i64,
+) -> Result<(), String> {
+    state.delete_image_template(template_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn push_sketch(
+    state: tauri::State<'_, crate::state::AppState>,
+    data_url: String,
+    device_id: String,
+    page_id: u32,
+) -> Result<(), String> {
+    state
+        .push_sketch(&data_url, &device_id, page_id)
+        .await
+        .map_err(|e| e.to_string())
+}

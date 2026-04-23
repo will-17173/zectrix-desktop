@@ -92,10 +92,10 @@ export async function updateLocalTodo(
   return invoke<TodoRecord>("update_local_todo", { localId, input });
 }
 
-export async function pushTodoToDevice(localId: string, deviceId: string): Promise<void> {
-  console.log("[tauri] pushTodoToDevice 调用", { localId, deviceId });
+export async function pushTodoToDevice(localId: string, deviceId: string, pageId?: number): Promise<void> {
+  console.log("[tauri] pushTodoToDevice 调用", { localId, deviceId, pageId });
   try {
-    const result = await invoke<void>("push_todo_to_device", { localId, deviceId });
+    const result = await invoke<void>("push_todo_to_device", { localId, deviceId, pageId });
     console.log("[tauri] pushTodoToDevice 返回", result);
     return result;
   } catch (e) {
@@ -123,8 +123,8 @@ export async function createTextTemplate(input: TextTemplateInput): Promise<Text
   return invoke<TextTemplateRecord>("create_text_template", { input });
 }
 
-export async function pushTextTemplate(templateId: number, deviceId: string): Promise<void> {
-  return invoke("push_text_template", { templateId, deviceId });
+export async function pushTextTemplate(templateId: number, deviceId: string, pageId?: number): Promise<void> {
+  return invoke("push_text_template", { templateId, deviceId, pageId });
 }
 
 export type ImageTemplateRecord = {
@@ -155,6 +155,23 @@ export async function getImageThumbnail(templateId: number): Promise<string> {
   return invoke<string>("get_image_thumbnail", { templateId });
 }
 
+export async function deleteImageTemplate(templateId: number): Promise<void> {
+  return invoke("delete_image_template", { templateId });
+}
+
 export async function renderImagePreview(input: ImageTemplateSaveInput): Promise<string> {
   return invoke<string>("render_image_preview", { input });
+}
+
+export async function pushSketch(dataUrl: string, deviceId: string, pageId: number): Promise<void> {
+  return invoke("push_sketch", { dataUrl, deviceId, pageId });
+}
+
+export async function pushText(
+  text: string,
+  fontSize: number,
+  deviceId: string,
+  pageId: number
+): Promise<void> {
+  return invoke("push_text", { text, fontSize, deviceId, pageId });
 }

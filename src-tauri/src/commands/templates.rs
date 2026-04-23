@@ -11,9 +11,24 @@ pub async fn push_text_template(
     state: tauri::State<'_, crate::state::AppState>,
     template_id: i64,
     device_id: String,
+    page_id: Option<u32>,
 ) -> Result<(), String> {
     state
-        .push_text_template(template_id, &device_id)
+        .push_text_template(template_id, &device_id, page_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn push_text(
+    state: tauri::State<'_, crate::state::AppState>,
+    text: String,
+    font_size: Option<u32>,
+    device_id: String,
+    page_id: Option<u32>,
+) -> Result<(), String> {
+    state
+        .push_text(&text, font_size, &device_id, page_id)
         .await
         .map_err(|e| e.to_string())
 }

@@ -194,6 +194,17 @@ pub async fn delete_cloud_todo(api_key: &str, id: i64) -> anyhow::Result<()> {
 pub struct StructuredTextBody {
     pub title: String,
     pub body: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PlainTextBody {
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_id: Option<String>,
 }
 
 pub async fn push_structured_text(
@@ -201,12 +212,14 @@ pub async fn push_structured_text(
     device_id: &str,
     title: &str,
     body: &str,
+    page_id: Option<u32>,
 ) -> anyhow::Result<()> {
     let client = reqwest::Client::new();
     let url = format!("{BASE_URL}/devices/{device_id}/display/structured-text");
     let payload = StructuredTextBody {
         title: title.to_string(),
         body: body.to_string(),
+        page_id: page_id.map(|p| p.to_string()),
     };
     let resp = client
         .post(&url)
@@ -224,6 +237,43 @@ pub async fn push_structured_text(
     if api_resp.code != 0 {
         anyhow::bail!(
             "推送失败: {}",
+            api_resp.msg.unwrap_or_else(|| "未知错误".to_string())
+        );
+    }
+
+    Ok(())
+}
+
+pub async fn push_text(
+    api_key: &str,
+    device_id: &str,
+    text: &str,
+    font_size: Option<u32>,
+    page_id: Option<u32>,
+) -> anyhow::Result<()> {
+    let client = reqwest::Client::new();
+    let url = format!("{BASE_URL}/devices/{device_id}/display/text");
+    let payload = PlainTextBody {
+        text: text.to_string(),
+        font_size,
+        page_id: page_id.map(|p| p.to_string()),
+    };
+    let resp = client
+        .post(&url)
+        .header("X-API-Key", api_key)
+        .json(&payload)
+        .send()
+        .await?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        anyhow::bail!("推送文本失败: {status}");
+    }
+
+    let api_resp: ApiResponse<serde_json::Value> = resp.json().await?;
+    if api_resp.code != 0 {
+        anyhow::bail!(
+            "推送文本失败: {}",
             api_resp.msg.unwrap_or_else(|| "未知错误".to_string())
         );
     }

@@ -16,12 +16,14 @@ test("opens the import dialog and exposes the local gallery actions", async () =
       devices={[{ deviceId: "AA:BB:CC:DD:EE:FF", alias: "Desk", board: "bread-compact-wifi" }]}
       onSaveTemplate={saveTemplate}
       onPushTemplate={vi.fn()}
+      onDeleteTemplate={vi.fn()}
     />,
   );
 
   expect(screen.getByRole("heading", { name: "本地图库" })).toBeInTheDocument();
-  expect(screen.getByText("现有图片")).toBeInTheDocument();
-  expect(screen.getByText("仅保存在本地")).toBeInTheDocument();
+  // 每张图片下方有页面选择器和推送按钮
+  expect(screen.getByRole("combobox", { name: undefined })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "推送" })).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "导入图片" }));
 

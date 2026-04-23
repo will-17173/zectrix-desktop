@@ -42,9 +42,10 @@ pub async fn push_todo_to_device(
     state: tauri::State<'_, crate::state::AppState>,
     local_id: String,
     device_id: String,
+    page_id: Option<u32>,
 ) -> Result<(), String> {
     state
-        .push_todo_to_device(&local_id, &device_id)
+        .push_todo_to_device(&local_id, &device_id, page_id)
         .await
         .map_err(|e| e.to_string())
 }

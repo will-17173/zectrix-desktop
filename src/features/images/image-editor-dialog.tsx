@@ -14,11 +14,10 @@ type Props = {
 };
 
 export function ImageEditorDialog({ onSave, onClose }: Props) {
-  const [name, setName] = useState("");
   const [sourceDataUrl, setSourceDataUrl] = useState<string | undefined>();
   const [selectedFileName, setSelectedFileName] = useState("");
 
-  const canSave = useMemo(() => name.trim() && sourceDataUrl, [name, sourceDataUrl]);
+  const canSave = useMemo(() => sourceDataUrl, [sourceDataUrl]);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -33,21 +32,22 @@ export function ImageEditorDialog({ onSave, onClose }: Props) {
       const result = typeof reader.result === "string" ? reader.result : undefined;
       setSourceDataUrl(result);
       setSelectedFileName(file.name);
-      if (!name.trim()) {
-        setName(file.name.replace(/\.[^.]+$/, ""));
-      }
     };
     reader.readAsDataURL(file);
   }
 
   async function handleConfirm() {
-    if (!canSave) {
+    if (!canSave || !sourceDataUrl) {
       return;
     }
+    // 使用文件名（去掉扩展名）作为图片名称
+    const name = selectedFileName.replace(/\.[^.]+$/, "");
     await onSave({
-      name: name.trim(),
+      name,
       sourceDataUrl,
-      crop: { x: 0, y: 0, width: 400, height: 300 },
+      // 传入足够大的裁切区域，后端会自动限制到实际图片尺寸
+      // resize_to_fill 会将整张图片缩放裁切到 400x300
+      crop: { x: 0, y: 0, width: 10000, height: 7500 },
       rotation: 0,
       flipX: false,
       flipY: false,
@@ -102,16 +102,6 @@ export function ImageEditorDialog({ onSave, onClose }: Props) {
                 {selectedFileName ? "更换图片" : "选择图片"}
               </button>
               {selectedFileName ? <p className="text-sm text-gray-500">已选择：{selectedFileName}</p> : null}
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="image-name" className="block text-sm font-medium">图片名称</label>
-              <input
-                id="image-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600"
-              />
             </div>
 
             <div className="flex gap-2 pt-2">

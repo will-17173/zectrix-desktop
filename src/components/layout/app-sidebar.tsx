@@ -1,10 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { CheckSquare, FileText, Image, Settings } from "lucide-react";
+import { CheckSquare, FileText, Image, Settings, PenTool, LayoutGrid } from "lucide-react";
 import { useWindowDrag } from "../../hooks/use-window-drag";
 
 const primaryNavItems = [
   { label: "待办事项", icon: CheckSquare, href: "/" },
+  { label: "涂鸦推送", icon: PenTool, href: "/sketch-push" },
   { label: "图片推送", icon: Image, href: "/image-push" },
+  { label: "自由排版", icon: LayoutGrid, href: "/free-layout" },
   { label: "文本推送", icon: FileText, href: "/text-push" },
 ];
 

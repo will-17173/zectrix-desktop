@@ -452,7 +452,7 @@ impl AppState {
         Ok(updated)
     }
 
-    pub async fn push_todo_to_device(&self, local_id: &str, device_id: &str) -> anyhow::Result<()> {
+    pub async fn push_todo_to_device(&self, local_id: &str, device_id: &str, page_id: Option<u32>) -> anyhow::Result<()> {
         let todos = self.load_todos()?;
         let todo = todos
             .iter()
@@ -482,7 +482,7 @@ impl AppState {
         }
         let body = body_parts.join("\n");
 
-        crate::api::client::push_structured_text(&api_key, device_id, &todo.title, &body).await
+        crate::api::client::push_structured_text(&api_key, device_id, &todo.title, &body, page_id).await
     }
 
     pub fn create_text_template(
@@ -509,6 +509,7 @@ impl AppState {
         &self,
         template_id: i64,
         device_id: &str,
+        page_id: Option<u32>,
     ) -> anyhow::Result<()> {
         let templates_path = self.data_dir.join("text_templates.json");
         let templates: Vec<TextTemplateRecord> = load_json(&templates_path)?;
@@ -530,8 +531,27 @@ impl AppState {
             device_id,
             &template.title,
             &template.content,
+            page_id,
         )
         .await
+    }
+
+    pub async fn push_text(
+        &self,
+        text: &str,
+        font_size: Option<u32>,
+        device_id: &str,
+        page_id: Option<u32>,
+    ) -> anyhow::Result<()> {
+        let devices_path = self.data_dir.join("devices.json");
+        let devices: Vec<DeviceRecord> = load_json(&devices_path)?;
+        let device = devices
+            .iter()
+            .find(|d| d.device_id.eq_ignore_ascii_case(device_id))
+            .ok_or_else(|| anyhow::anyhow!("设备 {device_id} 未找到"))?;
+
+        let api_key = self.get_api_key_by_id(device.api_key_id)?;
+        crate::api::client::push_text(&api_key, device_id, text, font_size, page_id).await
     }
 
     pub async fn sync_all(&self) -> anyhow::Result<BootstrapState> {
@@ -808,8 +828,8 @@ impl AppState {
         let img = image::open(&template.file_path)
             .map_err(|e| anyhow::anyhow!("无法打开图片: {e}"))?;
 
-        // 创建缩略图 (100x75 保持比例)
-        let thumbnail = img.resize(100, 75, image::imageops::FilterType::Lanczos3);
+        // 缩略图与原图尺寸相同 (400x300)，避免显示模糊
+        let thumbnail = img.resize(400, 300, image::imageops::FilterType::Lanczos3);
 
         let mut buf = std::io::Cursor::new(Vec::new());
         thumbnail
@@ -818,6 +838,52 @@ impl AppState {
 
         use base64::Engine;
         Ok(base64::engine::general_purpose::STANDARD.encode(&buf.into_inner()))
+    }
+
+    pub fn delete_image_template(&self, template_id: i64) -> anyhow::Result<()> {
+        let templates_path = self.data_dir.join("image_templates.json");
+        let mut templates: Vec<ImageTemplateRecord> = load_json(&templates_path)?;
+        let template = templates
+            .iter()
+            .find(|t| t.id == template_id)
+            .ok_or_else(|| anyhow::anyhow!("图片模板 {template_id} 未找到"))?;
+
+        // 删除图片文件
+        if std::fs::metadata(&template.file_path).is_ok() {
+            std::fs::remove_file(&template.file_path)?;
+        }
+
+        // 从 JSON 中移除记录
+        templates.retain(|t| t.id != template_id);
+        save_json(&templates_path, &templates)?;
+        Ok(())
+    }
+
+    pub async fn push_sketch(
+        &self,
+        data_url: &str,
+        device_id: &str,
+        page_id: u32,
+    ) -> anyhow::Result<()> {
+        let devices_path = self.data_dir.join("devices.json");
+        let devices: Vec<DeviceRecord> = load_json(&devices_path)?;
+        let device = devices
+            .iter()
+            .find(|d| d.device_id.eq_ignore_ascii_case(device_id))
+            .ok_or_else(|| anyhow::anyhow!("设备 {device_id} 未找到"))?;
+
+        // 解码 data URL
+        let payload = data_url
+            .split_once(',')
+            .map(|(_, payload)| payload)
+            .ok_or_else(|| anyhow::anyhow!("图片数据格式错误"))?;
+        use base64::Engine;
+        let image_bytes = base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .map_err(|e| anyhow::anyhow!("图片解码失败: {e}"))?;
+
+        let api_key = self.get_api_key_by_id(device.api_key_id)?;
+        crate::api::client::push_image(&api_key, device_id, image_bytes, page_id).await
     }
 }
 
