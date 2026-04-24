@@ -1183,6 +1183,94 @@ impl AppState {
             warning,
         })
     }
+
+    fn load_image_loop_tasks(&self) -> anyhow::Result<Vec<crate::models::ImageLoopTaskRecord>> {
+        let path = self.data_dir.join("image_loop_tasks.json");
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+        crate::storage::load_json(&path)
+    }
+
+    fn save_image_loop_tasks(&self, tasks: &Vec<crate::models::ImageLoopTaskRecord>) -> anyhow::Result<()> {
+        let path = self.data_dir.join("image_loop_tasks.json");
+        crate::storage::save_json(&path, tasks)
+    }
+
+    pub fn list_image_loop_tasks(&self) -> anyhow::Result<Vec<crate::models::ImageLoopTaskRecord>> {
+        self.load_image_loop_tasks()
+    }
+
+    pub fn create_image_loop_task(
+        &self,
+        input: crate::models::ImageLoopTaskInput,
+    ) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+        let mut tasks = self.load_image_loop_tasks()?;
+        let next_id = tasks.iter().map(|t| t.id).max().unwrap_or(0) + 1;
+        let now = chrono::Utc::now().to_rfc3339();
+
+        let scan_result = self.scan_image_folder(&input.folder_path)?;
+
+        let record = crate::models::ImageLoopTaskRecord {
+            id: next_id,
+            name: input.name,
+            folder_path: input.folder_path,
+            device_id: input.device_id,
+            page_id: input.page_id,
+            interval_seconds: input.interval_seconds,
+            duration_type: input.duration_type,
+            end_time: input.end_time,
+            duration_minutes: input.duration_minutes,
+            status: "idle".to_string(),
+            current_index: 0,
+            total_images: scan_result.total_images,
+            started_at: None,
+            last_push_at: None,
+            error_message: None,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+
+        tasks.push(record.clone());
+        self.save_image_loop_tasks(&tasks)?;
+        Ok(record)
+    }
+
+    pub fn update_image_loop_task(
+        &self,
+        task_id: i64,
+        input: crate::models::ImageLoopTaskInput,
+    ) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+        let mut tasks = self.load_image_loop_tasks()?;
+        let task = tasks
+            .iter_mut()
+            .find(|t| t.id == task_id)
+            .ok_or_else(|| anyhow::anyhow!("任务 {task_id} 未找到"))?;
+
+        let scan_result = self.scan_image_folder(&input.folder_path)?;
+
+        task.name = input.name;
+        task.folder_path = input.folder_path;
+        task.device_id = input.device_id;
+        task.page_id = input.page_id;
+        task.interval_seconds = input.interval_seconds;
+        task.duration_type = input.duration_type;
+        task.end_time = input.end_time;
+        task.duration_minutes = input.duration_minutes;
+        task.total_images = scan_result.total_images;
+        task.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let updated = task.clone();
+        self.save_image_loop_tasks(&tasks)?;
+        Ok(updated)
+    }
+
+    pub fn delete_image_loop_task(&self, task_id: i64) -> anyhow::Result<()> {
+        let mut tasks = self.load_image_loop_tasks()?;
+        tasks.retain(|t| t.id != task_id);
+        self.save_image_loop_tasks(&tasks)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1715,5 +1803,95 @@ mod tests {
 
         let result = state.scan_image_folder("/nonexistent/path");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn create_image_loop_task_persists_to_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        // 创建图片文件夹
+        std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
+
+        let input = crate::models::ImageLoopTaskInput {
+            name: "测试相册".into(),
+            folder_path: dir.path().to_str().unwrap().into(),
+            device_id: "AA:BB:CC".into(),
+            page_id: 1,
+            interval_seconds: 30,
+            duration_type: "none".into(),
+            end_time: None,
+            duration_minutes: None,
+        };
+
+        let record = state.create_image_loop_task(input).unwrap();
+
+        assert!(record.id > 0);
+        assert_eq!(record.name, "测试相册");
+        assert_eq!(record.status, "idle");
+        assert_eq!(record.total_images, 1);
+
+        // 验证持久化
+        let loaded = state.list_image_loop_tasks().unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, record.id);
+    }
+
+    #[test]
+    fn update_image_loop_task_modifies_existing_record() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
+
+        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
+            name: "原名".into(),
+            folder_path: dir.path().to_str().unwrap().into(),
+            device_id: "AA:BB:CC".into(),
+            page_id: 1,
+            interval_seconds: 30,
+            duration_type: "none".into(),
+            end_time: None,
+            duration_minutes: None,
+        }).unwrap();
+
+        let updated = state.update_image_loop_task(created.id, crate::models::ImageLoopTaskInput {
+            name: "新名".into(),
+            folder_path: dir.path().to_str().unwrap().into(),
+            device_id: "AA:BB:CC".into(),
+            page_id: 2,
+            interval_seconds: 60,
+            duration_type: "for_duration".into(),
+            end_time: None,
+            duration_minutes: Some(30),
+        }).unwrap();
+
+        assert_eq!(updated.name, "新名");
+        assert_eq!(updated.page_id, 2);
+        assert_eq!(updated.interval_seconds, 60);
+    }
+
+    #[test]
+    fn delete_image_loop_task_removes_from_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
+
+        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
+            name: "测试".into(),
+            folder_path: dir.path().to_str().unwrap().into(),
+            device_id: "AA:BB:CC".into(),
+            page_id: 1,
+            interval_seconds: 30,
+            duration_type: "none".into(),
+            end_time: None,
+            duration_minutes: None,
+        }).unwrap();
+
+        state.delete_image_loop_task(created.id).unwrap();
+
+        let loaded = state.list_image_loop_tasks().unwrap();
+        assert!(loaded.is_empty());
     }
 }
