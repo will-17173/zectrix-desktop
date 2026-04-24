@@ -671,7 +671,29 @@ impl AppState {
             .ok_or_else(|| anyhow::anyhow!("设备 {device_id} 未找到"))?;
 
         let api_key = self.get_api_key_by_id(device.api_key_id)?;
-        crate::api::client::push_text(&api_key, device_id, text, font_size, page_id).await
+        crate::api::client::push_text(&api_key, device_id, text, font_size, page_id).await?;
+
+        // 推送成功后写入缓存
+        if let Some(pid) = page_id {
+            let now = chrono::Utc::now().to_rfc3339();
+            let preview = if text.len() > 100 {
+                text.chars().take(100).collect::<String>() + "..."
+            } else {
+                text.to_string()
+            };
+
+            let record = PageCacheRecord {
+                device_id: device_id.to_string(),
+                page_id: pid,
+                content_type: "text".to_string(),
+                thumbnail: Some(preview),
+                metadata: Some(serde_json::json!({"fontSize": font_size.unwrap_or(20)}).to_string()),
+                pushed_at: now,
+            };
+            self.save_page_cache_record(record)?;
+        }
+
+        Ok(())
     }
 
     pub async fn push_structured_text(
@@ -689,7 +711,37 @@ impl AppState {
             .ok_or_else(|| anyhow::anyhow!("设备 {device_id} 未找到"))?;
 
         let api_key = self.get_api_key_by_id(device.api_key_id)?;
-        crate::api::client::push_structured_text(&api_key, device_id, title, body, page_id).await
+        crate::api::client::push_structured_text(&api_key, device_id, title, body, page_id).await?;
+
+        // 推送成功后写入缓存
+        if let Some(pid) = page_id {
+            let now = chrono::Utc::now().to_rfc3339();
+            let body_preview = if body.len() > 100 {
+                body.chars().take(100).collect::<String>() + "..."
+            } else {
+                body.to_string()
+            };
+
+            let thumbnail = if title.is_empty() {
+                body_preview.clone()
+            } else if body_preview.is_empty() {
+                title.to_string()
+            } else {
+                format!("{}\n{}", title, body_preview)
+            };
+
+            let record = PageCacheRecord {
+                device_id: device_id.to_string(),
+                page_id: pid,
+                content_type: "structured_text".to_string(),
+                thumbnail: Some(thumbnail),
+                metadata: Some(serde_json::json!({"title": title, "bodyPreview": body_preview}).to_string()),
+                pushed_at: now,
+            };
+            self.save_page_cache_record(record)?;
+        }
+
+        Ok(())
     }
 
     pub async fn sync_all(&self) -> anyhow::Result<BootstrapState> {
@@ -952,7 +1004,27 @@ impl AppState {
 
         let image_bytes = std::fs::read(&template.file_path)?;
         let api_key = self.get_api_key_by_id(device.api_key_id)?;
-        crate::api::client::push_image(&api_key, device_id, image_bytes, page_id).await
+        crate::api::client::push_image(&api_key, device_id, image_bytes.clone(), page_id).await?;
+
+        // 推送成功后写入缓存
+        let now = chrono::Utc::now().to_rfc3339();
+        let thumbnail_filename = format!("thumb_{}_{}.png",
+            device_id.replace(':', "_"),
+            page_id
+        );
+        let thumbnail = self.save_image_thumbnail(&image_bytes, &thumbnail_filename)?;
+
+        let record = PageCacheRecord {
+            device_id: device_id.to_string(),
+            page_id,
+            content_type: "image".to_string(),
+            thumbnail: Some(thumbnail),
+            metadata: Some(serde_json::json!({"width": 400, "height": 300}).to_string()),
+            pushed_at: now,
+        };
+        self.save_page_cache_record(record)?;
+
+        Ok(())
     }
 
     pub fn get_image_thumbnail(&self, template_id: i64) -> anyhow::Result<String> {
@@ -1021,7 +1093,27 @@ impl AppState {
             .map_err(|e| anyhow::anyhow!("图片解码失败: {e}"))?;
 
         let api_key = self.get_api_key_by_id(device.api_key_id)?;
-        crate::api::client::push_image(&api_key, device_id, image_bytes, page_id).await
+        crate::api::client::push_image(&api_key, device_id, image_bytes.clone(), page_id).await?;
+
+        // 推送成功后写入缓存
+        let now = chrono::Utc::now().to_rfc3339();
+        let thumbnail_filename = format!("thumb_{}_{}.png",
+            device_id.replace(':', "_"),
+            page_id
+        );
+        let thumbnail = self.save_image_thumbnail(&image_bytes, &thumbnail_filename)?;
+
+        let record = PageCacheRecord {
+            device_id: device_id.to_string(),
+            page_id,
+            content_type: "sketch".to_string(),
+            thumbnail: Some(thumbnail),
+            metadata: Some(serde_json::json!({"width": 400, "height": 300}).to_string()),
+            pushed_at: now,
+        };
+        self.save_page_cache_record(record)?;
+
+        Ok(())
     }
 }
 
