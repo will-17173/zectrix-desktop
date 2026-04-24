@@ -15,6 +15,7 @@ vi.mock("../lib/tauri", () => ({
     todos: [],
     textTemplates: [],
     imageTemplates: [],
+    imageLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
   }),
@@ -41,6 +42,7 @@ beforeEach(() => {
     todos: [],
     textTemplates: [],
     imageTemplates: [],
+    imageLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
   });
@@ -80,6 +82,7 @@ test("runs manual sync and shows success feedback", async () => {
     todos: [],
     textTemplates: [],
     imageTemplates: [],
+    imageLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
   });
@@ -90,6 +93,7 @@ test("runs manual sync and shows success feedback", async () => {
     todos: [],
     textTemplates: [],
     imageTemplates: [],
+    imageLoopTasks: [],
     lastSyncTime: "2026-04-23T00:00:00Z",
     pageCache: [],
   });
@@ -116,6 +120,7 @@ test("shows sync failure feedback when manual sync throws", async () => {
     todos: [],
     textTemplates: [],
     imageTemplates: [],
+    imageLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
   });
@@ -174,6 +179,7 @@ test("renders the redesigned toolbar title, sync action, and compact status badg
     todos: [],
     textTemplates: [],
     imageTemplates: [],
+    imageLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
   });
