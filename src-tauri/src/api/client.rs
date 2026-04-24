@@ -320,6 +320,40 @@ pub async fn push_image(
     Ok(())
 }
 
+pub async fn delete_page(
+    api_key: &str,
+    device_id: &str,
+    page_id: Option<u32>,
+) -> anyhow::Result<()> {
+    let client = reqwest::Client::new();
+    let url = if let Some(pid) = page_id {
+        format!("{BASE_URL}/devices/{device_id}/display/pages/{pid}")
+    } else {
+        format!("{BASE_URL}/devices/{device_id}/display/pages")
+    };
+
+    let resp = client
+        .delete(&url)
+        .header("X-API-Key", api_key)
+        .send()
+        .await?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        anyhow::bail!("删除页面失败: {status}");
+    }
+
+    let api_resp: ApiResponse<serde_json::Value> = resp.json().await?;
+    if api_resp.code != 0 {
+        anyhow::bail!(
+            "删除页面失败: {}",
+            api_resp.msg.unwrap_or_else(|| "未知错误".to_string())
+        );
+    }
+
+    Ok(())
+}
+
 // ── Error types ─────────────────────────────────────────────
 
 #[allow(dead_code)]
