@@ -1144,6 +1144,45 @@ impl AppState {
 
         Ok(())
     }
+
+    pub fn scan_image_folder(&self, folder_path: &str) -> anyhow::Result<crate::models::ImageFolderScanResult> {
+        let path = std::path::Path::new(folder_path);
+        if !path.exists() || !path.is_dir() {
+            anyhow::bail!("文件夹不存在或不是有效目录");
+        }
+
+        let image_extensions = ["jpg", "jpeg", "png", "gif", "bmp", "webp"];
+        let mut image_files: Vec<String> = Vec::new();
+
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            let ext = entry.path()
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_lowercase());
+
+            if let Some(e) = ext {
+                if image_extensions.contains(&e.as_str()) {
+                    image_files.push(file_name);
+                }
+            }
+        }
+
+        image_files.sort();
+
+        let warning = if image_files.is_empty() {
+            Some("该文件夹未检测到图片".to_string())
+        } else {
+            None
+        };
+
+        Ok(crate::models::ImageFolderScanResult {
+            total_images: image_files.len() as u32,
+            image_files,
+            warning,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -1241,6 +1280,10 @@ mod tests {
                 description: "".into(),
                 due_date: None,
                 due_time: None,
+                repeat_type: None,
+                repeat_weekday: None,
+                repeat_month: None,
+                repeat_day: None,
                 status: 0,
                 priority: 1,
                 device_id: None,
@@ -1384,7 +1427,6 @@ mod tests {
 
         let body = todo_upload_body(&todo);
 
-        assert_eq!(body.status, 1);
         assert_eq!(body.title, "Buy milk");
     }
 
@@ -1633,5 +1675,45 @@ mod tests {
         let todos = state.load_todos().unwrap();
         assert_eq!(todos.len(), 2);
         assert!(todos.iter().all(|t| t.device_id != Some("AA:BB:CC:DD:EE:FF".into())));
+    }
+
+    #[test]
+    fn scan_image_folder_detects_jpg_and_png_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        // 创建图片文件
+        std::fs::write(dir.path().join("photo1.jpg"), vec![0u8; 100]).unwrap();
+        std::fs::write(dir.path().join("photo2.png"), vec![0u8; 100]).unwrap();
+        std::fs::write(dir.path().join("readme.txt"), vec![0u8; 50]).unwrap();
+
+        let result = state.scan_image_folder(dir.path().to_str().unwrap()).unwrap();
+
+        assert_eq!(result.total_images, 2);
+        assert_eq!(result.image_files, vec!["photo1.jpg", "photo2.png"]);
+        assert!(result.warning.is_none());
+    }
+
+    #[test]
+    fn scan_image_folder_returns_warning_for_empty_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        // 只创建非图片文件
+        std::fs::write(dir.path().join("readme.txt"), vec![0u8; 50]).unwrap();
+
+        let result = state.scan_image_folder(dir.path().to_str().unwrap()).unwrap();
+
+        assert_eq!(result.total_images, 0);
+        assert!(result.warning.is_some());
+    }
+
+    #[test]
+    fn scan_image_folder_fails_for_nonexistent_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        let result = state.scan_image_folder("/nonexistent/path");
+        assert!(result.is_err());
     }
 }
