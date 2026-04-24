@@ -1309,6 +1309,127 @@ impl AppState {
         self.save_image_loop_tasks(&tasks)?;
         Ok(updated)
     }
+
+    pub async fn push_folder_image(&self, task_id: i64) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+        let mut tasks = self.load_image_loop_tasks()?;
+        let task_idx = tasks
+            .iter()
+            .position(|t| t.id == task_id)
+            .ok_or_else(|| anyhow::anyhow!("任务 {task_id} 未找到"))?;
+
+        if tasks[task_idx].status != "running" {
+            anyhow::bail!("任务未在运行中");
+        }
+
+        // 获取设备信息
+        let devices: Vec<crate::models::DeviceRecord> = crate::storage::load_json(
+            &self.data_dir.join("devices.json"),
+        )?;
+        let device = devices
+            .iter()
+            .find(|d| d.device_id.eq_ignore_ascii_case(&tasks[task_idx].device_id))
+            .ok_or_else(|| anyhow::anyhow!("设备 {} 未找到", tasks[task_idx].device_id))?;
+
+        let api_key = self.get_api_key_by_id(device.api_key_id)?;
+
+        // 获取图片列表
+        let scan_result = self.scan_image_folder(&tasks[task_idx].folder_path)?;
+        if scan_result.image_files.is_empty() {
+            tasks[task_idx].status = "completed".to_string();
+            tasks[task_idx].error_message = Some("文件夹中没有图片".to_string());
+            tasks[task_idx].updated_at = chrono::Utc::now().to_rfc3339();
+            let updated = tasks[task_idx].clone();
+            self.save_image_loop_tasks(&tasks)?;
+            return Ok(updated);
+        }
+
+        // 获取当前图片路径
+        let image_file = &scan_result.image_files[tasks[task_idx].current_index as usize];
+        let image_path = std::path::Path::new(&tasks[task_idx].folder_path).join(image_file);
+
+        // 加载并处理图片为 400x300
+        let img = image::open(&image_path)
+            .map_err(|e| anyhow::anyhow!("无法打开图片 {}: {}", image_file, e))?;
+        let processed = img.resize_to_fill(400, 300, image::imageops::FilterType::Lanczos3);
+
+        // 编码为 PNG
+        let mut buf = std::io::Cursor::new(Vec::new());
+        processed
+            .write_to(&mut buf, image::ImageFormat::Png)
+            .map_err(|e| anyhow::anyhow!("编码 PNG 失败: {}", e))?;
+        let image_bytes = buf.into_inner();
+
+        // 推送图片
+        let page_id = tasks[task_idx].page_id;
+        let device_id = tasks[task_idx].device_id.clone();
+        if let Err(e) = crate::api::client::push_image(&api_key, &device_id, image_bytes.clone(), page_id).await {
+            tasks[task_idx].status = "error".to_string();
+            tasks[task_idx].error_message = Some(e.to_string());
+            tasks[task_idx].updated_at = chrono::Utc::now().to_rfc3339();
+            self.save_image_loop_tasks(&tasks)?;
+            anyhow::bail!("推送失败: {}", e);
+        }
+
+        // 更新索引
+        tasks[task_idx].current_index = (tasks[task_idx].current_index + 1) % scan_result.total_images;
+        tasks[task_idx].last_push_at = Some(chrono::Utc::now().to_rfc3339());
+        tasks[task_idx].updated_at = chrono::Utc::now().to_rfc3339();
+
+        // 检查持续时间条件
+        let should_complete = self.check_duration_condition(&tasks[task_idx])?;
+        if should_complete {
+            tasks[task_idx].status = "completed".to_string();
+        }
+
+        let updated = tasks[task_idx].clone();
+        self.save_image_loop_tasks(&tasks)?;
+        Ok(updated)
+    }
+
+    pub fn check_duration_condition(&self, task: &crate::models::ImageLoopTaskRecord) -> anyhow::Result<bool> {
+        if task.duration_type == "none" {
+            return Ok(false);
+        }
+
+        let started_at = task
+            .started_at
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("任务缺少启动时间"))?;
+
+        let started = chrono::DateTime::parse_from_rfc3339(started_at)?
+            .with_timezone(&chrono::Utc);
+        let now = chrono::Utc::now();
+
+        if task.duration_type == "until_time" {
+            if let Some(end_time) = &task.end_time {
+                let parts: Vec<&str> = end_time.split(':').collect();
+                if parts.len() == 2 {
+                    let hour: u32 = parts[0].parse().unwrap_or(0);
+                    let minute: u32 = parts[1].parse().unwrap_or(0);
+
+                    let end_datetime = now
+                        .date_naive()
+                        .and_hms_opt(hour, minute, 0)
+                        .map(|dt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc));
+
+                    if let Some(end) = end_datetime {
+                        if now >= end {
+                            return Ok(true);
+                        }
+                    }
+                }
+            }
+        } else if task.duration_type == "for_duration" {
+            if let Some(minutes) = task.duration_minutes {
+                let elapsed = now - started;
+                if elapsed.num_minutes() >= minutes as i64 {
+                    return Ok(true);
+                }
+            }
+        }
+
+        Ok(false)
+    }
 }
 
 #[cfg(test)]
@@ -2002,5 +2123,67 @@ mod tests {
 
         assert_eq!(stopped.status, "idle");
         assert!(stopped.started_at.is_none());
+    }
+
+    #[test]
+    fn check_duration_condition_returns_true_when_duration_elapsed() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        let started_at = chrono::Utc::now() - chrono::TimeDelta::minutes(35);
+
+        let task = crate::models::ImageLoopTaskRecord {
+            id: 1,
+            name: "测试".into(),
+            folder_path: dir.path().to_str().unwrap().into(),
+            device_id: "AA:BB:CC".into(),
+            page_id: 1,
+            interval_seconds: 30,
+            duration_type: "for_duration".into(),
+            end_time: None,
+            duration_minutes: Some(30),
+            status: "running".into(),
+            current_index: 0,
+            total_images: 1,
+            started_at: Some(started_at.to_rfc3339()),
+            last_push_at: None,
+            error_message: None,
+            created_at: started_at.to_rfc3339(),
+            updated_at: started_at.to_rfc3339(),
+        };
+
+        let result = state.check_duration_condition(&task).unwrap();
+        assert!(result);
+    }
+
+    #[test]
+    fn check_duration_condition_returns_false_when_duration_not_elapsed() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        let started_at = chrono::Utc::now() - chrono::TimeDelta::minutes(10);
+
+        let task = crate::models::ImageLoopTaskRecord {
+            id: 1,
+            name: "测试".into(),
+            folder_path: dir.path().to_str().unwrap().into(),
+            device_id: "AA:BB:CC".into(),
+            page_id: 1,
+            interval_seconds: 30,
+            duration_type: "for_duration".into(),
+            end_time: None,
+            duration_minutes: Some(30),
+            status: "running".into(),
+            current_index: 0,
+            total_images: 1,
+            started_at: Some(started_at.to_rfc3339()),
+            last_push_at: None,
+            error_message: None,
+            created_at: started_at.to_rfc3339(),
+            updated_at: started_at.to_rfc3339(),
+        };
+
+        let result = state.check_duration_condition(&task).unwrap();
+        assert!(!result);
     }
 }

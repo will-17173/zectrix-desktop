@@ -53,3 +53,11 @@ pub fn stop_image_loop_task(
 ) -> Result<crate::models::ImageLoopTaskRecord, String> {
     state.stop_image_loop_task(task_id).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn push_folder_image(
+    state: tauri::State<'_, crate::state::AppState>,
+    task_id: i64,
+) -> Result<crate::models::ImageLoopTaskRecord, String> {
+    state.push_folder_image(task_id).await.map_err(|e| e.to_string())
+}
