@@ -75,6 +75,7 @@ pnpm tauri build
 - 使用 TanStack Query 的 `useQuery`/`useMutation` 时，数据来源是 Tauri 命令而非 HTTP 请求
 - 路由在 `src/app/App.tsx` 中直接定义（未使用 React Router 的路由配置）
 - UI 组件使用 Radix UI + Tailwind CSS 4，遵循现有组件的样式模式
+- **禁止使用原生 `<select>` 元素**，必须使用 `src/components/ui/select.tsx` 中的 shadcn/ui Select 组件
 
 ### Rust
 

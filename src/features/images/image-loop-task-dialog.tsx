@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { ImageLoopTask, ImageLoopTaskInput, DeviceRecord, ImageFolderScanResult } from "../../lib/tauri";
 import { scanImageFolder, selectFolderDialog } from "../../lib/tauri";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 type Props = {
   open: boolean;
@@ -43,6 +44,17 @@ export function ImageLoopTaskDialog({
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [scanResult, setScanResult] = useState<ImageFolderScanResult | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // 生成 datetime-local input 的最小值（当前时间，格式：YYYY-MM-DDTHH:mm）
+  const getMinDateTime = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
 
   useEffect(() => {
     if (editingTask) {
@@ -180,47 +192,50 @@ export function ImageLoopTaskDialog({
 
           <div>
             <label className="block text-sm font-medium mb-1">目标设备</label>
-            <select
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            >
-              {devices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.alias} ({d.deviceId.slice(0, 8)})
-                </option>
-              ))}
-            </select>
+            <Select value={deviceId} onValueChange={setDeviceId}>
+              <SelectTrigger>
+                <SelectValue placeholder="请选择设备" />
+              </SelectTrigger>
+              <SelectContent>
+                {devices.map((d) => (
+                  <SelectItem key={d.deviceId} value={d.deviceId}>
+                    {d.alias} ({d.deviceId.slice(0, 8)})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">目标页面</label>
-            <select
-              value={pageId}
-              onChange={(e) => setPageId(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            >
-              {PAGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <Select value={String(pageId)} onValueChange={(v) => setPageId(Number(v))}>
+              <SelectTrigger>
+                <SelectValue placeholder="请选择页面" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">循环间隔</label>
-            <select
-              value={intervalSeconds}
-              onChange={(e) => setIntervalSeconds(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            >
-              {INTERVAL_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <Select value={String(intervalSeconds)} onValueChange={(v) => setIntervalSeconds(Number(v))}>
+              <SelectTrigger>
+                <SelectValue placeholder="请选择间隔" />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERVAL_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -244,10 +259,11 @@ export function ImageLoopTaskDialog({
                 />
                 <span className="text-sm">运行至指定时间</span>
                 <input
-                  type="time"
+                  type="datetime-local"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
                   disabled={durationType !== "until_time"}
+                  min={getMinDateTime()}
                   className="px-2 py-1 border border-gray-300 rounded-md text-sm"
                 />
               </label>

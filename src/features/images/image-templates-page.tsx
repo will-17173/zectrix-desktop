@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { ImageEditorDialog } from "./image-editor-dialog";
 import { ImageLoopTaskList } from "./image-loop-task-list";
 import { ImageLoopTaskDialog } from "./image-loop-task-dialog";
 import { useImageLoopRunner } from "./use-image-loop-runner";
 import { pushFolderImage, type ImageLoopTask, type ImageLoopTaskInput, type DeviceRecord } from "../../lib/tauri";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 export type ImageTemplateRecord = {
   id: number;
@@ -192,7 +194,11 @@ export function ImageTemplatesPage({
   }
 
   async function handleDelete(templateId: number) {
-    if (!window.confirm("确定要删除这张图片吗？")) return;
+    const confirmed = await confirm("确定要删除这张图片吗？", {
+      title: "删除图片",
+      kind: "warning",
+    });
+    if (!confirmed) return;
     try {
       await onDeleteTemplate(templateId);
       setTemplates((prev) => prev.filter((t) => t.id !== templateId));
@@ -254,22 +260,26 @@ export function ImageTemplatesPage({
               </button>
             </div>
             <div className="flex items-center gap-2 p-2">
-              <select
-                value={pageIds[t.id] ?? 1}
-                onChange={(e) => setPageIds((prev) => ({ ...prev, [t.id]: Number(e.target.value) }))}
-                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md text-sm dark:border-gray-600 dark:bg-gray-700"
+              <Select
+                value={String(pageIds[t.id] ?? 1)}
+                onValueChange={(val) => setPageIds((prev) => ({ ...prev, [t.id]: Number(val) }))}
               >
-                {PAGE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="h-8 w-20 px-2 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={String(opt.value)} className="text-xs">
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <button
                 type="button"
                 onClick={() => handlePush(t.id)}
                 disabled={pushingId === t.id}
-                className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 whitespace-nowrap"
               >
                 {pushingId === t.id ? "推送中..." : "推送"}
               </button>

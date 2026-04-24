@@ -8,6 +8,7 @@ mod storage;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(state::AppState::new().expect("app state"))
         .invoke_handler(tauri::generate_handler![
             commands::config::load_bootstrap_state,

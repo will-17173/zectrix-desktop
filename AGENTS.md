@@ -13,7 +13,7 @@
 - `cargo test --manifest-path src-tauri/Cargo.toml` - run Rust tests for the Tauri backend.
 
 ## Coding Style & Naming Conventions
-Follow the existing TypeScript/React style in the repo: 2-space indentation, double quotes, semicolons, and trailing commas where the surrounding file uses them. Use `PascalCase` for React components and page files, `camelCase` for hooks and helpers, and `*.test.tsx` for tests. Prefer colocated feature modules under `src/features/<area>/` and reuse the shared UI wrappers in `src/components/ui/` instead of adding one-off patterns.
+Follow the existing TypeScript/React style in the repo: 2-space indentation, double quotes, semicolons, and trailing commas where the surrounding file uses them. Use `PascalCase` for React components and page files, `camelCase` for hooks and helpers, and `*.test.tsx` for tests. Prefer colocated feature modules under `src/features/<area>/` and reuse the shared UI wrappers in `src/components/ui/` instead of adding one-off patterns. **Do not use native `<select>` elements — always use the shadcn/ui Select component from `src/components/ui/select.tsx`.**
 
 ## Testing Guidelines
 Use Vitest with Testing Library for UI behavior. Mock Tauri-facing helpers in `src/lib/tauri` when tests need app state or backend calls. Keep tests focused on visible behavior: rendering, interactions, and state updates. Name tests by behavior, for example `renders the sidebar footer group` or `creates a todo from the collapsible form`.

@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Paintbrush, Eraser } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 type Device = { deviceId: string; alias: string; board: string };
 
@@ -21,7 +22,6 @@ export function SketchPage({ devices, onPushSketch }: Props) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState<"brush" | "eraser">("brush");
   const [brushSize, setBrushSize] = useState(4);
-  const [brushColor, setBrushColor] = useState("#000000");
   const [selectedPageId, setSelectedPageId] = useState(1);
   const [isPushing, setIsPushing] = useState(false);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
@@ -79,12 +79,12 @@ export function SketchPage({ devices, onPushSketch }: Props) {
     if (tool === "eraser") {
       ctx.strokeStyle = "#ffffff";
     } else {
-      ctx.strokeStyle = brushColor;
+      ctx.strokeStyle = "#000000";
     }
 
     ctx.lineTo(x, y);
     ctx.stroke();
-  }, [isDrawing, getContext, tool, brushSize, brushColor]);
+  }, [isDrawing, getContext, tool, brushSize]);
 
   // 结束绘制
   const stopDrawing = useCallback(() => {
@@ -167,18 +167,6 @@ export function SketchPage({ devices, onPushSketch }: Props) {
             </button>
           </div>
 
-          {tool === "brush" && (
-            <div className="space-y-2">
-              <label className="block text-xs text-gray-500">颜色</label>
-              <input
-                type="color"
-                value={brushColor}
-                onChange={(e) => setBrushColor(e.target.value)}
-                className="w-full h-8 rounded cursor-pointer"
-              />
-            </div>
-          )}
-
           <div className="space-y-2">
             <label className="block text-xs text-gray-500">大小</label>
             <input
@@ -215,17 +203,18 @@ export function SketchPage({ devices, onPushSketch }: Props) {
           />
 
           <div className="flex items-center gap-3 mt-4">
-            <select
-              value={selectedPageId}
-              onChange={(e) => setSelectedPageId(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm dark:border-gray-600 dark:bg-gray-700"
-            >
-              {PAGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <Select value={String(selectedPageId)} onValueChange={(v) => setSelectedPageId(Number(v))}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="选择页面" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <button
               type="button"
               onClick={handlePush}

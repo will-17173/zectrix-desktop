@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import type { ImageLoopTask, DeviceRecord } from "../../lib/tauri";
 
 type Props = {
@@ -57,7 +58,11 @@ export function ImageLoopTaskCard({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`确定要删除任务 "${task.name}" 吗？`)) return;
+    const confirmed = await confirm(`确定要删除任务 "${task.name}" 吗？`, {
+      title: "删除任务",
+      kind: "warning",
+    });
+    if (!confirmed) return;
     await onDelete(task.id);
   };
 
