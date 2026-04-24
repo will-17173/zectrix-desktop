@@ -1,6 +1,6 @@
 use crate::models::{
     ApiKeyRecord, AppConfig, BootstrapState, CropRect, DeviceRecord, ImageEditInput,
-    ImageTemplateRecord, ImageTemplateSaveInput, TextTemplateInput, TextTemplateRecord, TodoRecord,
+    ImageTemplateRecord, ImageTemplateSaveInput, PageCacheRecord, TextTemplateInput, TextTemplateRecord, TodoRecord,
     TodoUpsertInput,
 };
 use crate::storage::{load_json, save_json};
@@ -236,6 +236,7 @@ impl AppState {
         let todos = self.load_todos()?;
         let text_templates = load_json(&self.data_dir.join("text_templates.json"))?;
         let image_templates = load_json(&self.data_dir.join("image_templates.json"))?;
+        let page_cache = self.load_page_cache()?;
 
         Ok(BootstrapState {
             api_keys,
@@ -244,7 +245,7 @@ impl AppState {
             text_templates,
             image_templates,
             last_sync_time: config.last_sync_time,
-            page_cache: vec![],
+            page_cache,
         })
     }
 
@@ -332,6 +333,109 @@ impl AppState {
         devices.retain(|d| !d.device_id.eq_ignore_ascii_case(device_id));
         save_json(&path, &devices)?;
         Ok(())
+    }
+
+    fn load_page_cache(&self) -> anyhow::Result<Vec<PageCacheRecord>> {
+        load_json(&self.data_dir.join("page_cache.json"))
+    }
+
+    pub fn get_page_cache_list(&self, device_id: &str) -> anyhow::Result<Vec<PageCacheRecord>> {
+        let all = self.load_page_cache()?;
+        let filtered: Vec<PageCacheRecord> = all
+            .into_iter()
+            .filter(|p| p.device_id.eq_ignore_ascii_case(device_id))
+            .collect();
+        Ok(filtered)
+    }
+
+    pub async fn delete_page_cache(&self, device_id: &str, page_id: u32) -> anyhow::Result<()> {
+        // 1. 删除本地缓存
+        let path = self.data_dir.join("page_cache.json");
+        let mut cache: Vec<PageCacheRecord> = self.load_page_cache()?;
+        let record = cache
+            .iter()
+            .find(|p| p.device_id.eq_ignore_ascii_case(device_id) && p.page_id == page_id)
+            .cloned();
+
+        // 删除缩略图文件（如果是图片类型）
+        if let Some(rec) = &record {
+            if rec.content_type == "sketch" || rec.content_type == "image" {
+                if let Some(thumbnail_path) = &rec.thumbnail {
+                    let thumb_path = self.data_dir.join("thumbnails").join(thumbnail_path);
+                    if std::fs::metadata(&thumb_path).is_ok() {
+                        std::fs::remove_file(&thumb_path)?;
+                    }
+                }
+            }
+        }
+
+        cache.retain(|p| !p.device_id.eq_ignore_ascii_case(device_id) || p.page_id != page_id);
+        save_json(&path, &cache)?;
+
+        // 2. 调用云端 API
+        let devices: Vec<DeviceRecord> = load_json(&self.data_dir.join("devices.json"))?;
+        let device = devices
+            .iter()
+            .find(|d| d.device_id.eq_ignore_ascii_case(device_id))
+            .ok_or_else(|| anyhow::anyhow!("设备 {device_id} 未找到"))?;
+
+        let api_key = self.get_api_key_by_id(device.api_key_id)?;
+        crate::api::client::delete_page(&api_key, device_id, Some(page_id)).await?;
+
+        Ok(())
+    }
+
+    fn save_page_cache(&self, cache: &Vec<PageCacheRecord>) -> anyhow::Result<()> {
+        save_json(&self.data_dir.join("page_cache.json"), cache)
+    }
+
+    fn save_page_cache_record(&self, record: PageCacheRecord) -> anyhow::Result<()> {
+        let path = self.data_dir.join("page_cache.json");
+        let mut cache: Vec<PageCacheRecord> = if path.exists() {
+            self.load_page_cache()?
+        } else {
+            Vec::new()
+        };
+
+        // 先找旧记录用于删除缩略图
+        let old = cache.iter().find(|p|
+            p.device_id.eq_ignore_ascii_case(&record.device_id) && p.page_id == record.page_id
+        ).cloned();
+
+        // 如果有旧的缩略图文件，删除它
+        if let Some(old_rec) = old {
+            if old_rec.content_type == "sketch" || old_rec.content_type == "image" {
+                if let Some(thumbnail_path) = &old_rec.thumbnail {
+                    let thumb_path = self.data_dir.join("thumbnails").join(thumbnail_path);
+                    if std::fs::metadata(&thumb_path).is_ok() {
+                        std::fs::remove_file(&thumb_path)?;
+                    }
+                }
+            }
+        }
+
+        // 移除同设备同页面的旧记录
+        cache.retain(|p| !p.device_id.eq_ignore_ascii_case(&record.device_id) || p.page_id != record.page_id);
+        cache.push(record);
+        save_json(&path, &cache)?;
+        Ok(())
+    }
+
+    fn save_image_thumbnail(&self, image_bytes: &[u8], filename: &str) -> anyhow::Result<String> {
+        let thumbnails_dir = self.data_dir.join("thumbnails");
+        std::fs::create_dir_all(&thumbnails_dir)?;
+
+        let img = image::load_from_memory(image_bytes)
+            .map_err(|e| anyhow::anyhow!("无法读取图片: {e}"))?;
+
+        let thumbnail = img.resize(200, 150, image::imageops::FilterType::Lanczos3);
+
+        let file_path = thumbnails_dir.join(filename);
+        thumbnail
+            .save_with_format(&file_path, image::ImageFormat::Png)
+            .map_err(|e| anyhow::anyhow!("保存缩略图失败: {e}"))?;
+
+        Ok(filename.to_string())
     }
 
     pub fn list_device_cache(&self) -> anyhow::Result<Vec<DeviceRecord>> {
