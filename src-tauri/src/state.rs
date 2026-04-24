@@ -257,6 +257,8 @@ impl AppState {
         let image_templates = load_json(&self.data_dir.join("image_templates.json"))?;
         let page_cache = self.load_page_cache()?;
 
+        let image_loop_tasks = self.load_image_loop_tasks()?;
+
         Ok(BootstrapState {
             api_keys,
             devices,
@@ -265,6 +267,7 @@ impl AppState {
             image_templates,
             last_sync_time: config.last_sync_time,
             page_cache,
+            image_loop_tasks,
         })
     }
 

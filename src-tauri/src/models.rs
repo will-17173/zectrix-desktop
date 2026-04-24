@@ -36,6 +36,8 @@ pub struct BootstrapState {
     pub image_templates: Vec<ImageTemplateRecord>,
     pub last_sync_time: Option<String>,
     pub page_cache: Vec<PageCacheRecord>,
+    #[serde(default)]
+    pub image_loop_tasks: Vec<ImageLoopTaskRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
