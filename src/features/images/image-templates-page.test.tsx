@@ -13,10 +13,17 @@ test("opens the import dialog and exposes the local gallery actions", async () =
   render(
     <ImageTemplatesPage
       templates={[{ id: 7, name: "现有图片", filePath: "/tmp/existing.png" }]}
-      devices={[{ deviceId: "AA:BB:CC:DD:EE:FF", alias: "Desk", board: "bread-compact-wifi" }]}
+      devices={[{ deviceId: "AA:BB:CC:DD:EE:FF", alias: "Desk", board: "bread-compact-wifi", cachedAt: "2026-04-24T10:00:00Z", apiKeyId: 1 }]}
+      imageLoopTasks={[]}
       onSaveTemplate={saveTemplate}
       onPushTemplate={vi.fn()}
       onDeleteTemplate={vi.fn()}
+      onCreateLoopTask={vi.fn()}
+      onUpdateLoopTask={vi.fn()}
+      onDeleteLoopTask={vi.fn()}
+      onStartLoopTask={vi.fn()}
+      onStopLoopTask={vi.fn()}
+      onRefreshLoopTasks={vi.fn()}
     />,
   );
 
