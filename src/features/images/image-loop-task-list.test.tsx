@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ImageLoopTaskList } from "./image-loop-task-list";
-import type { ImageLoopTask, DeviceRecord } from "@/lib/tauri";
+import type { ImageLoopTask, DeviceRecord } from "../../lib/tauri";
 
 const mockDevice: DeviceRecord = {
   deviceId: "AA:BB:CC:DD:EE:FF",

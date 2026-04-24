@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ImageLoopTask, DeviceRecord } from "@/lib/tauri";
+import type { ImageLoopTask, DeviceRecord } from "../../lib/tauri";
 
 type Props = {
   task: ImageLoopTask;

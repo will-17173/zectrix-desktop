@@ -1,4 +1,4 @@
-import type { ImageLoopTask, DeviceRecord } from "@/lib/tauri";
+import type { ImageLoopTask, DeviceRecord } from "../../lib/tauri";
 import { ImageLoopTaskCard } from "./image-loop-task-card";
 
 type Props = {

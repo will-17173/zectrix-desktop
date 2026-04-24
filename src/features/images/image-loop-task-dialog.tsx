@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import type { ImageLoopTask, ImageLoopTaskInput, DeviceRecord, ImageFolderScanResult } from "@/lib/tauri";
-import { scanImageFolder, selectFolderDialog } from "@/lib/tauri";
+import type { ImageLoopTask, ImageLoopTaskInput, DeviceRecord, ImageFolderScanResult } from "../../lib/tauri";
+import { scanImageFolder, selectFolderDialog } from "../../lib/tauri";
 
 type Props = {
   open: boolean;

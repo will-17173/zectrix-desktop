@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ImageLoopTask } from "@/lib/tauri";
+import type { ImageLoopTask } from "../../lib/tauri";
 
 type PushFolderImageFn = (taskId: number) => Promise<ImageLoopTask>;
 

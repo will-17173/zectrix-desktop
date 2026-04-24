@@ -3,7 +3,7 @@ import { ImageEditorDialog } from "./image-editor-dialog";
 import { ImageLoopTaskList } from "./image-loop-task-list";
 import { ImageLoopTaskDialog } from "./image-loop-task-dialog";
 import { useImageLoopRunner } from "./use-image-loop-runner";
-import { pushFolderImage, type ImageLoopTask, type ImageLoopTaskInput, type DeviceRecord } from "@/lib/tauri";
+import { pushFolderImage, type ImageLoopTask, type ImageLoopTaskInput, type DeviceRecord } from "../../lib/tauri";
 
 export type ImageTemplateRecord = {
   id: number;
