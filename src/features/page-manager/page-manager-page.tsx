@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Trash2, Image, Type, PenTool } from "lucide-react";
 import { getPageCacheList, deletePageCache, type PageCacheRecord } from "../../lib/tauri";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 type Device = { deviceId: string; alias: string; board: string };
 
@@ -107,18 +108,18 @@ export function PageManagerPage({ devices }: Props) {
             <label htmlFor="device-select" className="block text-sm font-medium">
               选择设备
             </label>
-            <select
-              id="device-select"
-              value={selectedDeviceId}
-              onChange={(e) => setSelectedDeviceId(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md dark:border-gray-600 dark:bg-gray-700"
-            >
-              {devices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.alias || d.deviceId}
-                </option>
-              ))}
-            </select>
+            <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+              <SelectTrigger id="device-select">
+                <SelectValue placeholder="选择设备" />
+              </SelectTrigger>
+              <SelectContent>
+                {devices.map((d) => (
+                  <SelectItem key={d.deviceId} value={d.deviceId}>
+                    {d.alias || d.deviceId}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {loading && <div className="text-sm text-gray-500">加载中...</div>}

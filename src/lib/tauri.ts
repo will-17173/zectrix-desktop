@@ -56,6 +56,10 @@ export type TodoRecord = {
   description: string;
   dueDate: string | null;
   dueTime: string | null;
+  repeatType: string | null;
+  repeatWeekday: number | null;
+  repeatMonth: number | null;
+  repeatDay: number | null;
   status: number;
   priority: number;
   deviceId: string | null;
@@ -67,10 +71,14 @@ export type TodoRecord = {
 
 export type TodoUpsertInput = {
   title: string;
-  description: string;
+  description?: string;
   dueDate?: string;
   dueTime?: string;
-  priority: number;
+  repeatType?: string;
+  repeatWeekday?: number;
+  repeatMonth?: number;
+  repeatDay?: number;
+  priority?: number;
   deviceId?: string;
 };
 

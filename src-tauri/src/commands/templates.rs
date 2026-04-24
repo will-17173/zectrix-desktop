@@ -32,3 +32,17 @@ pub async fn push_text(
         .await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn push_structured_text(
+    state: tauri::State<'_, crate::state::AppState>,
+    title: String,
+    body: String,
+    device_id: String,
+    page_id: Option<u32>,
+) -> Result<(), String> {
+    state
+        .push_structured_text(&title, &body, &device_id, page_id)
+        .await
+        .map_err(|e| e.to_string())
+}

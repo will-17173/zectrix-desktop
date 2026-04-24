@@ -10,6 +10,27 @@ where
     Ok(opt.unwrap_or_default())
 }
 
+fn deserialize_optional_string_as_i32<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match opt {
+        None => Ok(None),
+        Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(s)) => s.parse::<i32>().map(Some).map_err(|_| {
+            serde::de::Error::custom(format!("Failed to parse '{}' as i32", s))
+        }),
+        Some(serde_json::Value::Number(n)) => n.as_i64().map(|v| Some(v as i32)).ok_or_else(|| {
+            serde::de::Error::custom("Number out of i32 range")
+        }),
+        Some(other) => Err(serde::de::Error::custom(format!(
+            "Expected string or number, got {}",
+            other
+        ))),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ApiResponse<T> {
     pub code: i32,
@@ -38,12 +59,12 @@ pub struct ApiTodo {
     pub due_time: Option<String>,
     #[serde(default)]
     pub repeat_type: Option<String>,
-    #[serde(default)]
-    pub repeat_weekday: Option<String>,
-    #[serde(default)]
-    pub repeat_month: Option<String>,
-    #[serde(default)]
-    pub repeat_day: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_string_as_i32")]
+    pub repeat_weekday: Option<i32>,
+    #[serde(default, deserialize_with = "deserialize_optional_string_as_i32")]
+    pub repeat_month: Option<i32>,
+    #[serde(default, deserialize_with = "deserialize_optional_string_as_i32")]
+    pub repeat_day: Option<i32>,
     pub status: i32,
     pub priority: i32,
     #[serde(default)]
@@ -103,13 +124,22 @@ pub async fn fetch_todos(api_key: &str) -> anyhow::Result<Vec<ApiTodo>> {
 #[serde(rename_all = "camelCase")]
 pub struct CreateTodoBody {
     pub title: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_time: Option<String>,
-    pub status: i32,
-    pub priority: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repeat_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repeat_weekday: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repeat_month: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repeat_day: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_id: Option<String>,
 }
@@ -194,16 +224,16 @@ pub async fn delete_cloud_todo(api_key: &str, id: i64) -> anyhow::Result<()> {
 pub struct StructuredTextBody {
     pub title: String,
     pub body: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "pageId")]
     pub page_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct PlainTextBody {
     pub text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "fontSize")]
     pub font_size: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "pageId")]
     pub page_id: Option<String>,
 }
 

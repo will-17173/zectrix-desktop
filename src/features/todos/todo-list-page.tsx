@@ -5,6 +5,30 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 
 type Device = { deviceId: string; alias: string; board: string };
 
+const REPEAT_TYPE_OPTIONS = [
+  { value: "none", label: "不重复" },
+  { value: "daily", label: "每天" },
+  { value: "weekly", label: "每周" },
+  { value: "monthly", label: "每月" },
+  { value: "yearly", label: "每年" },
+];
+
+const WEEKDAY_OPTIONS = [
+  { value: "0", label: "周日" },
+  { value: "1", label: "周一" },
+  { value: "2", label: "周二" },
+  { value: "3", label: "周三" },
+  { value: "4", label: "周四" },
+  { value: "5", label: "周五" },
+  { value: "6", label: "周六" },
+];
+
+const PRIORITY_OPTIONS = [
+  { value: "0", label: "普通" },
+  { value: "1", label: "重要" },
+  { value: "2", label: "紧急" },
+];
+
 type Props = {
   todos: TodoRecord[];
   devices: Device[];
@@ -42,6 +66,11 @@ export function TodoListPage({
   const [dueDateActive, setDueDateActive] = useState(false);
   const [dueTimeActive, setDueTimeActive] = useState(false);
   const [deviceId, setDeviceId] = useState("");
+  const [repeatType, setRepeatType] = useState("none");
+  const [repeatWeekday, setRepeatWeekday] = useState("");
+  const [repeatMonth, setRepeatMonth] = useState("");
+  const [repeatDay, setRepeatDay] = useState("");
+  const [priority, setPriority] = useState("0");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
   const [pushingId, setPushingId] = useState<string | null>(null);
@@ -57,33 +86,27 @@ export function TodoListPage({
     e.preventDefault();
     setActionLoading(true);
     try {
+      const input: TodoUpsertInput = {
+        title,
+        description,
+        dueDate: dueDate || undefined,
+        dueTime: dueTime || undefined,
+        repeatType: repeatType === "none" ? undefined : repeatType,
+        repeatWeekday: repeatType === "weekly" && repeatWeekday ? Number(repeatWeekday) : undefined,
+        repeatMonth: repeatType === "yearly" && repeatMonth ? Number(repeatMonth) : undefined,
+        repeatDay: (repeatType === "monthly" || repeatType === "yearly") && repeatDay ? Number(repeatDay) : undefined,
+        priority: Number(priority),
+        deviceId: deviceId || undefined,
+      };
       if (editingTodo) {
-        const updated = await onUpdateTodo(editingTodo.localId, {
-          title,
-          description,
-          dueDate: dueDate || undefined,
-          dueTime: dueTime || undefined,
-          priority: editingTodo.priority,
-          deviceId: deviceId || undefined,
-        });
+        const updated = await onUpdateTodo(editingTodo.localId, input);
         setTodos((prev) => prev.map((t) => (t.localId === updated.localId ? updated : t)));
         setEditingTodo(null);
       } else {
-        const created = await onCreateTodo({
-          title,
-          description,
-          dueDate: dueDate || undefined,
-          dueTime: dueTime || undefined,
-          priority: 1,
-          deviceId: deviceId || undefined,
-        });
+        const created = await onCreateTodo(input);
         setTodos((prev) => [created, ...prev].filter((t) => !t.deleted));
       }
-      setTitle("");
-      setDescription("");
-      setDueDate("");
-      setDueTime("");
-      setDeviceId("");
+      resetForm();
       setDialogOpen(false);
     } finally {
       setActionLoading(false);
@@ -107,6 +130,11 @@ export function TodoListPage({
     setDueDate(todo.dueDate ?? "");
     setDueTime(todo.dueTime ?? "");
     setDeviceId(todo.deviceId ?? "");
+    setRepeatType(todo.repeatType ?? "none");
+    setRepeatWeekday(todo.repeatWeekday?.toString() ?? "");
+    setRepeatMonth(todo.repeatMonth?.toString() ?? "");
+    setRepeatDay(todo.repeatDay?.toString() ?? "");
+    setPriority(todo.priority?.toString() ?? "0");
     setDueDateActive(Boolean(todo.dueDate));
     setDueTimeActive(Boolean(todo.dueTime));
     setDialogOpen(true);
@@ -138,6 +166,11 @@ export function TodoListPage({
     setDueDateActive(false);
     setDueTimeActive(false);
     setDeviceId("");
+    setRepeatType("none");
+    setRepeatWeekday("");
+    setRepeatMonth("");
+    setRepeatDay("");
+    setPriority("0");
     setEditingTodo(null);
   }
 
@@ -244,6 +277,84 @@ export function TodoListPage({
                       placeholder="不设置截止时间"
                       onFocus={() => setDueTimeActive(true)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-400"
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="todo-priority" className="block text-sm font-medium">优先级</label>
+                <Select value={priority} onValueChange={setPriority}>
+                  <SelectTrigger id="todo-priority">
+                    <SelectValue placeholder="普通" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITY_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="todo-repeat-type" className="block text-sm font-medium">重复</label>
+                  <Select value={repeatType} onValueChange={(v) => { setRepeatType(v); if (v === "none") { setRepeatWeekday(""); setRepeatMonth(""); setRepeatDay(""); } }}>
+                    <SelectTrigger id="todo-repeat-type">
+                      <SelectValue placeholder="不重复" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REPEAT_TYPE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="todo-repeat-period" className="block text-sm font-medium">重复周期</label>
+                  {repeatType === "weekly" ? (
+                    <Select value={repeatWeekday} onValueChange={setRepeatWeekday}>
+                      <SelectTrigger id="todo-repeat-period">
+                        <SelectValue placeholder="选择周几" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WEEKDAY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : repeatType === "yearly" ? (
+                    <div className="flex gap-2">
+                      <input
+                        id="todo-repeat-month"
+                        type="number"
+                        min="1"
+                        max="12"
+                        value={repeatMonth}
+                        onChange={(e) => setRepeatMonth(e.target.value)}
+                        placeholder="月"
+                        className="w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        id="todo-repeat-day"
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={repeatDay}
+                        onChange={(e) => setRepeatDay(e.target.value)}
+                        placeholder="号"
+                        className="w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  ) : (
+                    <input
+                      id="todo-repeat-period"
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={repeatDay}
+                      onChange={(e) => setRepeatDay(e.target.value)}
+                      placeholder={repeatType === "monthly" ? "每月几号 (1-31)" : "选择重复类型后设置"}
+                      disabled={repeatType === "none"}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   )}
                 </div>

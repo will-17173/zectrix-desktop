@@ -54,8 +54,11 @@ fn todo_upload_body(todo: &TodoRecord) -> crate::api::client::CreateTodoBody {
         description: todo.description.clone(),
         due_date: todo.due_date.clone(),
         due_time: todo.due_time.clone(),
-        status: todo.status,
-        priority: todo.priority,
+        repeat_type: todo.repeat_type.clone(),
+        repeat_weekday: todo.repeat_weekday,
+        repeat_month: todo.repeat_month,
+        repeat_day: todo.repeat_day,
+        priority: Some(todo.priority),
         device_id: todo.device_id.clone(),
     }
 }
@@ -68,6 +71,10 @@ fn apply_local_state_to_api_todo(
     api_todo.description = local_todo.description.clone();
     api_todo.due_date = local_todo.due_date.clone();
     api_todo.due_time = local_todo.due_time.clone();
+    api_todo.repeat_type = local_todo.repeat_type.clone();
+    api_todo.repeat_weekday = local_todo.repeat_weekday;
+    api_todo.repeat_month = local_todo.repeat_month;
+    api_todo.repeat_day = local_todo.repeat_day;
     api_todo.status = local_todo.status;
     api_todo.priority = local_todo.priority;
     api_todo.completed = local_todo.status == 1;
@@ -107,6 +114,10 @@ fn merge_cloud_todos(
                         description: cloud.description,
                         due_date: cloud.due_date,
                         due_time: cloud.due_time,
+                        repeat_type: cloud.repeat_type,
+                        repeat_weekday: cloud.repeat_weekday,
+                        repeat_month: cloud.repeat_month,
+                        repeat_day: cloud.repeat_day,
                         status: cloud.status,
                         priority: cloud.priority,
                         device_id: cloud.device_id,
@@ -131,6 +142,10 @@ fn merge_cloud_todos(
             description: cloud.description,
             due_date: cloud.due_date,
             due_time: cloud.due_time,
+            repeat_type: cloud.repeat_type,
+            repeat_weekday: cloud.repeat_weekday,
+            repeat_month: cloud.repeat_month,
+            repeat_day: cloud.repeat_day,
             status: cloud.status,
             priority: cloud.priority,
             device_id: cloud.device_id,
@@ -198,6 +213,10 @@ fn todo_from_legacy(legacy: LegacyTodoRecord) -> TodoRecord {
         description: legacy.description,
         due_date: legacy.due_date,
         due_time: legacy.due_time,
+        repeat_type: None,
+        repeat_weekday: None,
+        repeat_month: None,
+        repeat_day: None,
         status: legacy.status,
         priority: legacy.priority,
         device_id: legacy.device_id,
@@ -499,8 +518,12 @@ impl AppState {
             description: input.description,
             due_date: input.due_date,
             due_time: input.due_time,
+            repeat_type: input.repeat_type,
+            repeat_weekday: input.repeat_weekday,
+            repeat_month: input.repeat_month,
+            repeat_day: input.repeat_day,
             status: 0,
-            priority: input.priority,
+            priority: input.priority.unwrap_or(0),
             device_id: input.device_id,
             dirty: true,
             deleted: false,
@@ -563,7 +586,13 @@ impl AppState {
         todo.description = input.description;
         todo.due_date = input.due_date;
         todo.due_time = input.due_time;
-        todo.priority = input.priority;
+        todo.repeat_type = input.repeat_type;
+        todo.repeat_weekday = input.repeat_weekday;
+        todo.repeat_month = input.repeat_month;
+        todo.repeat_day = input.repeat_day;
+        if let Some(p) = input.priority {
+            todo.priority = p;
+        }
         todo.device_id = input.device_id;
         todo.dirty = true;
         todo.updated_at = chrono::Utc::now().to_rfc3339();
@@ -1131,6 +1160,10 @@ mod tests {
             description: "".into(),
             due_date: None,
             due_time: None,
+            repeat_type: None,
+            repeat_weekday: None,
+            repeat_month: None,
+            repeat_day: None,
             status,
             priority: 1,
             device_id: None,
@@ -1179,7 +1212,11 @@ mod tests {
                 description: "".into(),
                 due_date: None,
                 due_time: None,
-                priority: 1,
+                repeat_type: None,
+                repeat_weekday: None,
+                repeat_month: None,
+                repeat_day: None,
+                priority: Some(1),
                 device_id: None,
             })
             .unwrap();

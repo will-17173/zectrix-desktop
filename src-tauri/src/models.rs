@@ -50,6 +50,14 @@ pub struct TodoRecord {
     pub due_date: Option<String>,
     #[serde(alias = "due_time")]
     pub due_time: Option<String>,
+    #[serde(default)]
+    pub repeat_type: Option<String>,
+    #[serde(default)]
+    pub repeat_weekday: Option<i32>,
+    #[serde(default)]
+    pub repeat_month: Option<i32>,
+    #[serde(default)]
+    pub repeat_day: Option<i32>,
     pub status: i32,
     pub priority: i32,
     #[serde(alias = "device_id")]
@@ -72,10 +80,15 @@ pub struct TodoRecord {
 #[serde(rename_all = "camelCase")]
 pub struct TodoUpsertInput {
     pub title: String,
+    #[serde(default)]
     pub description: String,
     pub due_date: Option<String>,
     pub due_time: Option<String>,
-    pub priority: i32,
+    pub repeat_type: Option<String>,
+    pub repeat_weekday: Option<i32>,
+    pub repeat_month: Option<i32>,
+    pub repeat_day: Option<i32>,
+    pub priority: Option<i32>,
     pub device_id: Option<String>,
 }
 
