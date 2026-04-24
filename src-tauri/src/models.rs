@@ -159,3 +159,46 @@ pub struct PageCacheRecord {
     pub metadata: Option<String>,
     pub pushed_at: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageLoopTaskRecord {
+    pub id: i64,
+    pub name: String,
+    pub folder_path: String,
+    pub device_id: String,
+    pub page_id: u32,
+    pub interval_seconds: u32,
+    pub duration_type: String,
+    pub end_time: Option<String>,
+    pub duration_minutes: Option<u32>,
+    pub status: String,
+    pub current_index: u32,
+    pub total_images: u32,
+    pub started_at: Option<String>,
+    pub last_push_at: Option<String>,
+    pub error_message: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageLoopTaskInput {
+    pub name: String,
+    pub folder_path: String,
+    pub device_id: String,
+    pub page_id: u32,
+    pub interval_seconds: u32,
+    pub duration_type: String,
+    pub end_time: Option<String>,
+    pub duration_minutes: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageFolderScanResult {
+    pub total_images: u32,
+    pub image_files: Vec<String>,
+    pub warning: Option<String>,
+}
