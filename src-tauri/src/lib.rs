@@ -35,8 +35,17 @@ pub fn run() {
             commands::images::push_sketch,
             commands::page_cache::get_page_cache_list,
             commands::page_cache::delete_page_cache,
-        commands::updater::check_for_update,
+            commands::updater::check_for_update,
             commands::updater::get_current_version,
+            commands::image_loop::scan_image_folder,
+            commands::image_loop::list_image_loop_tasks,
+            commands::image_loop::create_image_loop_task,
+            commands::image_loop::update_image_loop_task,
+            commands::image_loop::delete_image_loop_task,
+            commands::image_loop::start_image_loop_task,
+            commands::image_loop::stop_image_loop_task,
+            commands::image_loop::push_folder_image,
+            commands::image_loop::select_folder_dialog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
