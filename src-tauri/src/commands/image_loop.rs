@@ -37,3 +37,19 @@ pub fn delete_image_loop_task(
 ) -> Result<(), String> {
     state.delete_image_loop_task(task_id).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn start_image_loop_task(
+    state: tauri::State<'_, crate::state::AppState>,
+    task_id: i64,
+) -> Result<crate::models::ImageLoopTaskRecord, String> {
+    state.start_image_loop_task(task_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn stop_image_loop_task(
+    state: tauri::State<'_, crate::state::AppState>,
+    task_id: i64,
+) -> Result<crate::models::ImageLoopTaskRecord, String> {
+    state.stop_image_loop_task(task_id).map_err(|e| e.to_string())
+}

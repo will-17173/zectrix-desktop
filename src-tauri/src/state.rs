@@ -1271,6 +1271,44 @@ impl AppState {
         self.save_image_loop_tasks(&tasks)?;
         Ok(())
     }
+
+    pub fn start_image_loop_task(&self, task_id: i64) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+        let mut tasks = self.load_image_loop_tasks()?;
+        let task = tasks
+            .iter_mut()
+            .find(|t| t.id == task_id)
+            .ok_or_else(|| anyhow::anyhow!("任务 {task_id} 未找到"))?;
+
+        if task.total_images == 0 {
+            anyhow::bail!("文件夹中没有图片，无法启动");
+        }
+
+        task.status = "running".to_string();
+        task.current_index = 0;
+        task.started_at = Some(chrono::Utc::now().to_rfc3339());
+        task.error_message = None;
+        task.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let updated = task.clone();
+        self.save_image_loop_tasks(&tasks)?;
+        Ok(updated)
+    }
+
+    pub fn stop_image_loop_task(&self, task_id: i64) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+        let mut tasks = self.load_image_loop_tasks()?;
+        let task = tasks
+            .iter_mut()
+            .find(|t| t.id == task_id)
+            .ok_or_else(|| anyhow::anyhow!("任务 {task_id} 未找到"))?;
+
+        task.status = "idle".to_string();
+        task.started_at = None;
+        task.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let updated = task.clone();
+        self.save_image_loop_tasks(&tasks)?;
+        Ok(updated)
+    }
 }
 
 #[cfg(test)]
@@ -1893,5 +1931,76 @@ mod tests {
 
         let loaded = state.list_image_loop_tasks().unwrap();
         assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn start_image_loop_task_sets_running_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
+
+        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
+            name: "测试".into(),
+            folder_path: dir.path().to_str().unwrap().into(),
+            device_id: "AA:BB:CC".into(),
+            page_id: 1,
+            interval_seconds: 30,
+            duration_type: "none".into(),
+            end_time: None,
+            duration_minutes: None,
+        }).unwrap();
+
+        let started = state.start_image_loop_task(created.id).unwrap();
+
+        assert_eq!(started.status, "running");
+        assert!(started.started_at.is_some());
+        assert_eq!(started.current_index, 0);
+    }
+
+    #[test]
+    fn start_image_loop_task_fails_for_empty_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
+            name: "空文件夹".into(),
+            folder_path: dir.path().to_str().unwrap().into(),
+            device_id: "AA:BB:CC".into(),
+            page_id: 1,
+            interval_seconds: 30,
+            duration_type: "none".into(),
+            end_time: None,
+            duration_minutes: None,
+        }).unwrap();
+
+        let result = state.start_image_loop_task(created.id);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("没有图片"));
+    }
+
+    #[test]
+    fn stop_image_loop_task_sets_idle_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
+
+        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
+            name: "测试".into(),
+            folder_path: dir.path().to_str().unwrap().into(),
+            device_id: "AA:BB:CC".into(),
+            page_id: 1,
+            interval_seconds: 30,
+            duration_type: "none".into(),
+            end_time: None,
+            duration_minutes: None,
+        }).unwrap();
+
+        state.start_image_loop_task(created.id).unwrap();
+        let stopped = state.stop_image_loop_task(created.id).unwrap();
+
+        assert_eq!(stopped.status, "idle");
+        assert!(stopped.started_at.is_none());
     }
 }
