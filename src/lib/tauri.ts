@@ -14,6 +14,7 @@ export type BootstrapState = {
   textTemplates: Array<TextTemplateRecord>;
   imageTemplates: Array<ImageTemplateRecord>;
   lastSyncTime: string | null;
+  pageCache: Array<PageCacheRecord>;
 };
 
 export async function loadBootstrapState(): Promise<BootstrapState> {
@@ -168,6 +169,15 @@ export async function pushSketch(dataUrl: string, deviceId: string, pageId: numb
 }
 
 export async function pushText(
+  title: string,
+  body: string,
+  deviceId: string,
+  pageId: number
+): Promise<void> {
+  return invoke("push_structured_text", { title, body, deviceId, pageId });
+}
+
+export async function pushFreeLayoutText(
   text: string,
   fontSize: number,
   deviceId: string,
@@ -190,4 +200,21 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
 
 export async function getCurrentVersion(): Promise<string> {
   return invoke<string>("get_current_version");
+}
+
+export type PageCacheRecord = {
+  deviceId: string;
+  pageId: number;
+  contentType: "sketch" | "image" | "text" | "structured_text";
+  thumbnail: string | null;
+  metadata: Record<string, unknown> | null;
+  pushedAt: string;
+};
+
+export async function getPageCacheList(deviceId: string): Promise<PageCacheRecord[]> {
+  return invoke<PageCacheRecord[]>("get_page_cache_list", { deviceId });
+}
+
+export async function deletePageCache(deviceId: string, pageId: number): Promise<void> {
+  return invoke("delete_page_cache", { deviceId, pageId });
 }
