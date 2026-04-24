@@ -1,4 +1,17 @@
 #[tauri::command]
+pub async fn select_folder_dialog() -> Result<Option<String>, String> {
+    let home = dirs::home_dir()
+        .ok_or_else(|| "无法获取用户主目录".to_string())?;
+
+    let result = rfd::AsyncFileDialog::new()
+        .set_directory(&home)
+        .pick_folder()
+        .await;
+
+    Ok(result.map(|handle| handle.path().to_string_lossy().to_string()))
+}
+
+#[tauri::command]
 pub fn scan_image_folder(
     state: tauri::State<'_, crate::state::AppState>,
     folder_path: String,
