@@ -244,6 +244,7 @@ impl AppState {
             text_templates,
             image_templates,
             last_sync_time: config.last_sync_time,
+            page_cache: vec![],
         })
     }
 
@@ -567,6 +568,24 @@ impl AppState {
 
         let api_key = self.get_api_key_by_id(device.api_key_id)?;
         crate::api::client::push_text(&api_key, device_id, text, font_size, page_id).await
+    }
+
+    pub async fn push_structured_text(
+        &self,
+        title: &str,
+        body: &str,
+        device_id: &str,
+        page_id: Option<u32>,
+    ) -> anyhow::Result<()> {
+        let devices_path = self.data_dir.join("devices.json");
+        let devices: Vec<DeviceRecord> = load_json(&devices_path)?;
+        let device = devices
+            .iter()
+            .find(|d| d.device_id.eq_ignore_ascii_case(device_id))
+            .ok_or_else(|| anyhow::anyhow!("设备 {device_id} 未找到"))?;
+
+        let api_key = self.get_api_key_by_id(device.api_key_id)?;
+        crate::api::client::push_structured_text(&api_key, device_id, title, body, page_id).await
     }
 
     pub async fn sync_all(&self) -> anyhow::Result<BootstrapState> {

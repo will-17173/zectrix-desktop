@@ -35,6 +35,7 @@ pub struct BootstrapState {
     pub text_templates: Vec<TextTemplateRecord>,
     pub image_templates: Vec<ImageTemplateRecord>,
     pub last_sync_time: Option<String>,
+    pub page_cache: Vec<PageCacheRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,4 +134,15 @@ pub struct ImageTemplateSaveInput {
     pub rotation: u32,
     pub flip_x: bool,
     pub flip_y: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageCacheRecord {
+    pub device_id: String,
+    pub page_id: u32,
+    pub content_type: String,
+    pub thumbnail: Option<String>,
+    pub metadata: Option<String>,
+    pub pushed_at: String,
 }
