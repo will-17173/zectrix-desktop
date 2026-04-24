@@ -7,6 +7,43 @@ export type ApiKeyRecord = {
   createdAt: string;
 };
 
+export type ImageLoopTask = {
+  id: number;
+  name: string;
+  folderPath: string;
+  deviceId: string;
+  pageId: number;
+  intervalSeconds: number;
+  durationType: "none" | "until_time" | "for_duration";
+  endTime?: string;
+  durationMinutes?: number;
+  status: "idle" | "running" | "completed" | "error";
+  currentIndex: number;
+  totalImages: number;
+  startedAt?: string;
+  lastPushAt?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImageLoopTaskInput = {
+  name: string;
+  folderPath: string;
+  deviceId: string;
+  pageId: number;
+  intervalSeconds: number;
+  durationType: "none" | "until_time" | "for_duration";
+  endTime?: string;
+  durationMinutes?: number;
+};
+
+export type ImageFolderScanResult = {
+  totalImages: number;
+  imageFiles: string[];
+  warning?: string;
+};
+
 export type BootstrapState = {
   apiKeys: ApiKeyRecord[];
   devices: DeviceRecord[];
@@ -15,6 +52,7 @@ export type BootstrapState = {
   imageTemplates: Array<ImageTemplateRecord>;
   lastSyncTime: string | null;
   pageCache: Array<PageCacheRecord>;
+  imageLoopTasks: Array<ImageLoopTask>;
 };
 
 export async function loadBootstrapState(): Promise<BootstrapState> {
@@ -225,4 +263,40 @@ export async function getPageCacheList(deviceId: string): Promise<PageCacheRecor
 
 export async function deletePageCache(deviceId: string, pageId: number): Promise<void> {
   return invoke("delete_page_cache", { deviceId, pageId });
+}
+
+export async function listImageLoopTasks(): Promise<ImageLoopTask[]> {
+  return invoke<ImageLoopTask[]>("list_image_loop_tasks");
+}
+
+export async function createImageLoopTask(input: ImageLoopTaskInput): Promise<ImageLoopTask> {
+  return invoke<ImageLoopTask>("create_image_loop_task", { input });
+}
+
+export async function updateImageLoopTask(taskId: number, input: ImageLoopTaskInput): Promise<ImageLoopTask> {
+  return invoke<ImageLoopTask>("update_image_loop_task", { taskId, input });
+}
+
+export async function deleteImageLoopTask(taskId: number): Promise<void> {
+  return invoke("delete_image_loop_task", { taskId });
+}
+
+export async function startImageLoopTask(taskId: number): Promise<ImageLoopTask> {
+  return invoke<ImageLoopTask>("start_image_loop_task", { taskId });
+}
+
+export async function stopImageLoopTask(taskId: number): Promise<ImageLoopTask> {
+  return invoke<ImageLoopTask>("stop_image_loop_task", { taskId });
+}
+
+export async function pushFolderImage(taskId: number): Promise<ImageLoopTask> {
+  return invoke<ImageLoopTask>("push_folder_image", { taskId });
+}
+
+export async function scanImageFolder(folderPath: string): Promise<ImageFolderScanResult> {
+  return invoke<ImageFolderScanResult>("scan_image_folder", { folderPath });
+}
+
+export async function selectFolderDialog(): Promise<string | null> {
+  return invoke<string | null>("select_folder_dialog");
 }
