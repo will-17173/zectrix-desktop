@@ -28,7 +28,14 @@ import {
   syncAll,
   toggleTodoStatus,
   updateLocalTodo,
+  createImageLoopTask,
+  updateImageLoopTask,
+  deleteImageLoopTask,
+  startImageLoopTask,
+  stopImageLoopTask,
+  listImageLoopTasks,
   type BootstrapState,
+  type ImageLoopTaskInput,
 } from "../lib/tauri";
 import type { SyncState } from "../features/sync/sync-status";
 
@@ -38,6 +45,7 @@ const emptyState: BootstrapState = {
   todos: [],
   textTemplates: [],
   imageTemplates: [],
+  imageLoopTasks: [],
   lastSyncTime: null,
   pageCache: [],
 };
@@ -82,6 +90,11 @@ export default function App() {
 
   function reload() {
     void loadBootstrapState().then(setState);
+  }
+
+  async function refreshLoopTasks() {
+    const tasks = await listImageLoopTasks();
+    setState((prev) => ({ ...prev, imageLoopTasks: tasks }));
   }
 
   async function handleSync() {
@@ -151,6 +164,7 @@ export default function App() {
         <ImageTemplatesPage
           templates={state.imageTemplates}
           devices={state.devices}
+          imageLoopTasks={state.imageLoopTasks}
           onSaveTemplate={async (input) => {
             const t = await saveImageTemplate(input);
             reload();
@@ -164,6 +178,22 @@ export default function App() {
             reload();
           }}
           onLoadThumbnail={getImageThumbnail}
+          onCreateLoopTask={async (input: ImageLoopTaskInput) => {
+            await createImageLoopTask(input);
+          }}
+          onUpdateLoopTask={async (taskId: number, input: ImageLoopTaskInput) => {
+            await updateImageLoopTask(taskId, input);
+          }}
+          onDeleteLoopTask={async (taskId: number) => {
+            await deleteImageLoopTask(taskId);
+          }}
+          onStartLoopTask={async (taskId: number) => {
+            return await startImageLoopTask(taskId);
+          }}
+          onStopLoopTask={async (taskId: number) => {
+            return await stopImageLoopTask(taskId);
+          }}
+          onRefreshLoopTasks={refreshLoopTasks}
         />
       );
     }
