@@ -21,7 +21,7 @@ export function ImageLoopTaskList({
   if (tasks.length === 0) {
     return (
       <p className="text-sm text-gray-500 py-4">
-        暂无循环相册任务，点击上方"新建任务"创建。
+        暂无文件夹轮播任务，点击上方"新建任务"创建。
       </p>
     );
   }

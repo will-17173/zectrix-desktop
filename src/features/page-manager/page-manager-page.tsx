@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Trash2, Image, Type, PenTool } from "lucide-react";
+import { Trash2, Image, Type, PenTool, Repeat, Pause } from "lucide-react";
 import { getPageCacheList, deletePageCache, type PageCacheRecord } from "../../lib/tauri";
+import { listImageLoopTasks, startImageLoopTask, stopImageLoopTask, type ImageLoopTask } from "../../lib/tauri";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 type Device = { deviceId: string; alias: string; board: string };
@@ -38,15 +39,18 @@ function contentTypeLabel(type: string) {
 
 type Props = {
   devices: Device[];
+  onRefreshLoopTasks?: () => Promise<void>;
 };
 
-export function PageManagerPage({ devices }: Props) {
+export function PageManagerPage({ devices, onRefreshLoopTasks }: Props) {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>(
     devices[0]?.deviceId || ""
   );
   const [pageList, setPageList] = useState<PageCacheRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingPageId, setDeletingPageId] = useState<number | null>(null);
+  const [loopTasks, setLoopTasks] = useState<ImageLoopTask[]>([]);
+  const [togglingTaskId, setTogglingTaskId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!selectedDeviceId) return;
@@ -55,6 +59,11 @@ export function PageManagerPage({ devices }: Props) {
       .then(setPageList)
       .finally(() => setLoading(false));
   }, [selectedDeviceId]);
+
+  useEffect(() => {
+    listImageLoopTasks()
+      .then(setLoopTasks);
+  }, []);
 
   async function handleDelete(pageId: number) {
     setDeletingPageId(pageId);
@@ -73,6 +82,27 @@ export function PageManagerPage({ devices }: Props) {
     return pageList.find((p) => p.pageId === pageId);
   }
 
+  function getPageLoopTask(pageId: number): ImageLoopTask | undefined {
+    return loopTasks.find(
+      (t) => t.deviceId === selectedDeviceId && t.pageId === pageId && t.status === "running"
+    );
+  }
+
+  async function handleToggleTask(task: ImageLoopTask) {
+    setTogglingTaskId(task.id);
+    try {
+      const updated = task.status === "running"
+        ? await stopImageLoopTask(task.id)
+        : await startImageLoopTask(task.id);
+      setLoopTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      await onRefreshLoopTasks?.();
+    } catch (e) {
+      console.error("切换任务失败:", e);
+    } finally {
+      setTogglingTaskId(null);
+    }
+  }
+
   function renderThumbnail(record: PageCacheRecord) {
     if (record.contentType === "sketch" || record.contentType === "image") {
       const Icon = contentTypeIcon(record.contentType);
@@ -83,7 +113,7 @@ export function PageManagerPage({ devices }: Props) {
       );
     }
     return (
-      <div className="h-24 bg-gray-100 rounded p-2 text-sm text-gray-600 overflow-hidden">
+      <div className="h-24 bg-gray-100 rounded p-2 text-sm text-gray-600 overflow-hidden whitespace-pre-wrap">
         {record.thumbnail || ""}
       </div>
     );
@@ -130,6 +160,7 @@ export function PageManagerPage({ devices }: Props) {
                 const record = getPageData(pageId);
                 const Icon = record ? contentTypeIcon(record.contentType) : null;
                 const isDeleting = deletingPageId === pageId;
+                const loopTask = getPageLoopTask(pageId);
 
                 return (
                   <div
@@ -159,6 +190,22 @@ export function PageManagerPage({ devices }: Props) {
                           {isDeleting ? "删除中..." : "删除"}
                         </button>
                       </>
+                    ) : loopTask ? (
+                      <div className="flex flex-col items-center justify-center h-32 gap-1">
+                        <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium">
+                          <Repeat size={14} />
+                          <span>{loopTask.name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleTask(loopTask)}
+                          disabled={togglingTaskId === loopTask.id}
+                          className="flex items-center gap-0.5 px-2 py-0.5 text-xs text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
+                        >
+                          <Pause size={10} />
+                          {togglingTaskId === loopTask.id ? "停止中" : "停止"}
+                        </button>
+                      </div>
                     ) : (
                       <div className="flex items-center justify-center h-32 text-sm text-gray-400">
                         暂无内容

@@ -10,6 +10,246 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+/// Execute a single image push for a running loop task (standalone function for background task)
+async fn execute_image_loop_push(data_dir: PathBuf, task_id: i64) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+    let mut tasks: Vec<crate::models::ImageLoopTaskRecord> = crate::storage::load_json(
+        &data_dir.join("image_loop_tasks.json"),
+    )?;
+    let task_idx = tasks
+        .iter()
+        .position(|t| t.id == task_id)
+        .ok_or_else(|| anyhow::anyhow!("任务 {task_id} 未找到"))?;
+
+    if tasks[task_idx].status != "running" {
+        anyhow::bail!("任务未在运行中");
+    }
+
+    // 获取设备信息
+    let devices: Vec<crate::models::DeviceRecord> = crate::storage::load_json(
+        &data_dir.join("devices.json"),
+    )?;
+    let device = devices
+        .iter()
+        .find(|d| d.device_id.eq_ignore_ascii_case(&tasks[task_idx].device_id))
+        .ok_or_else(|| anyhow::anyhow!("设备 {} 未找到", tasks[task_idx].device_id))?;
+
+    // Get API key from api_keys.json
+    let api_key: String = {
+        let api_keys: Vec<crate::models::ApiKeyRecord> = crate::storage::load_json(
+            &data_dir.join("api_keys.json"),
+        )?;
+        api_keys
+            .iter()
+            .find(|k| k.id == device.api_key_id)
+            .map(|k| k.key.clone())
+            .ok_or_else(|| anyhow::anyhow!("API Key ID {} 未找到", device.api_key_id))?
+    };
+
+    // 获取图片列表
+    let folder_path = &tasks[task_idx].folder_path;
+    let scan_result = scan_image_folder_standalone(folder_path)?;
+    if scan_result.image_files.is_empty() {
+        tasks[task_idx].status = "completed".to_string();
+        tasks[task_idx].error_message = Some("文件夹中没有图片".to_string());
+        tasks[task_idx].updated_at = chrono::Utc::now().to_rfc3339();
+        let updated = tasks[task_idx].clone();
+        crate::storage::save_json(&data_dir.join("image_loop_tasks.json"), &tasks)?;
+        return Ok(updated);
+    }
+
+    // 获取当前图片路径
+    let image_file = &scan_result.image_files[tasks[task_idx].current_index as usize];
+    let image_path = std::path::Path::new(folder_path).join(image_file);
+
+    // 加载并处理图片为 400x300
+    // Use Reader::new().with_guessed_format() to auto-detect format from content, not extension
+    let img = image::io::Reader::open(&image_path)
+        .map_err(|e| anyhow::anyhow!("无法打开图片 {}: {}", image_file, e))?
+        .with_guessed_format()
+        .map_err(|e| anyhow::anyhow!("无法识别图片格式 {}: {}", image_file, e))?
+        .decode()
+        .map_err(|e| anyhow::anyhow!("无法解码图片 {}: {}", image_file, e))?;
+    // Apply EXIF orientation if present
+    let img = apply_exif_orientation(img, &image_path);
+    let processed = img.resize_to_fill(400, 300, image::imageops::FilterType::Lanczos3);
+
+    // 编码为 PNG
+    let mut buf = std::io::Cursor::new(Vec::new());
+    processed
+        .write_to(&mut buf, image::ImageFormat::Png)
+        .map_err(|e| anyhow::anyhow!("编码 PNG 失败: {}", e))?;
+    let image_bytes = buf.into_inner();
+
+    // 推送图片 (async call)
+    let page_id = tasks[task_idx].page_id;
+    let device_id = tasks[task_idx].device_id.clone();
+    let push_result = crate::api::client::push_image(&api_key, &device_id, image_bytes.clone(), page_id).await;
+
+    if let Err(e) = push_result {
+        tasks[task_idx].status = "error".to_string();
+        tasks[task_idx].error_message = Some(e.to_string());
+        tasks[task_idx].updated_at = chrono::Utc::now().to_rfc3339();
+        crate::storage::save_json(&data_dir.join("image_loop_tasks.json"), &tasks)?;
+        anyhow::bail!("推送失败: {}", e);
+    }
+
+    // 更新索引
+    tasks[task_idx].current_index = (tasks[task_idx].current_index + 1) % scan_result.total_images;
+    tasks[task_idx].last_push_at = Some(chrono::Utc::now().to_rfc3339());
+    tasks[task_idx].updated_at = chrono::Utc::now().to_rfc3339();
+
+    // 检查持续时间条件
+    let should_complete = check_duration_condition_standalone(&tasks[task_idx]);
+    if should_complete {
+        tasks[task_idx].status = "completed".to_string();
+    }
+
+    let updated = tasks[task_idx].clone();
+    crate::storage::save_json(&data_dir.join("image_loop_tasks.json"), &tasks)?;
+    Ok(updated)
+}
+
+/// Standalone image folder scanner
+fn scan_image_folder_standalone(folder_path: &str) -> anyhow::Result<crate::models::ImageFolderScanResult> {
+    let path = std::path::Path::new(folder_path);
+    if !path.exists() {
+        anyhow::bail!("文件夹不存在");
+    }
+    if !path.is_dir() {
+        anyhow::bail!("路径不是文件夹");
+    }
+
+    let image_extensions = ["jpg", "jpeg", "png", "gif", "bmp", "webp"];
+    let mut image_files: Vec<String> = Vec::new();
+
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let file_name = entry.file_name().to_string_lossy().to_string();
+        let ext = file_name
+            .rsplit('.')
+            .next()
+            .unwrap_or("")
+            .to_lowercase();
+        if image_extensions.contains(&ext.as_str()) {
+            image_files.push(file_name);
+        }
+    }
+
+    // Sort by filename for predictable order
+    image_files.sort();
+
+    let total_images = image_files.len() as u32;
+    let warning = if total_images == 0 {
+        Some("文件夹中没有图片".to_string())
+    } else if total_images > 100 {
+        Some("文件夹中图片数量超过100张，可能导致性能问题".to_string())
+    } else {
+        None
+    };
+
+    Ok(crate::models::ImageFolderScanResult {
+        total_images,
+        image_files,
+        warning,
+    })
+}
+
+/// Check duration condition standalone
+fn check_duration_condition_standalone(task: &crate::models::ImageLoopTaskRecord) -> bool {
+    if task.duration_type == "none" {
+        return false;
+    }
+
+    let started_at = task.started_at.as_ref();
+    if started_at.is_none() {
+        return false;
+    }
+
+    let started = chrono::DateTime::parse_from_rfc3339(started_at.unwrap())
+        .ok()
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+    if started.is_none() {
+        return false;
+    }
+    let started = started.unwrap();
+    let now = chrono::Utc::now();
+
+    if task.duration_type == "until_time" {
+        if let Some(end_time) = &task.end_time {
+            let parts: Vec<&str> = end_time.split(':').collect();
+            if parts.len() == 2 {
+                let hour: u32 = parts[0].parse().unwrap_or(0);
+                let minute: u32 = parts[1].parse().unwrap_or(0);
+
+                let end_datetime = now
+                    .date_naive()
+                    .and_hms_opt(hour, minute, 0)
+                    .map(|dt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc));
+
+                if let Some(end) = end_datetime {
+                    if now >= end {
+                        return true;
+                    }
+                }
+            }
+        }
+    } else if task.duration_type == "for_duration" {
+        if let Some(minutes) = task.duration_minutes {
+            let elapsed = now - started;
+            if elapsed.num_minutes() >= minutes as i64 {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+/// Apply EXIF orientation transformation to the image.
+/// Returns the transformed image if orientation tag exists, otherwise returns original.
+fn apply_exif_orientation(img: image::DynamicImage, path: &std::path::Path) -> image::DynamicImage {
+    let exif_reader = exif::Reader::new();
+    let file = std::fs::File::open(path);
+    if file.is_err() {
+        return img;
+    }
+    let exif = exif_reader.read_from_container(&mut std::io::BufReader::new(file.unwrap()));
+    if exif.is_err() {
+        return img;
+    }
+    let exif = exif.unwrap();
+
+    let orientation = exif.get_field(exif::Tag::Orientation, exif::In::PRIMARY);
+    if orientation.is_none() {
+        return img;
+    }
+
+    // EXIF orientation values: 1-8
+    // 1 = Normal
+    // 2 = Flip horizontal
+    // 3 = Rotate 180
+    // 4 = Flip vertical
+    // 5 = Rotate 90 + flip horizontal
+    // 6 = Rotate 90
+    // 7 = Rotate 270 + flip horizontal
+    // 8 = Rotate 270
+    let orientation_value = match &orientation.unwrap().value {
+        exif::Value::Short(v) => v.first().copied().unwrap_or(1),
+        _ => 1,
+    };
+    match orientation_value {
+        1 => img,                                   // Normal
+        2 => img.fliph(),                           // Flip horizontal
+        3 => img.rotate180(),                       // Rotate 180
+        4 => img.flipv(),                           // Flip vertical
+        5 => img.rotate90().fliph(),                // Rotate 90 + flip horizontal
+        6 => img.rotate90(),                        // Rotate 90 (portrait)
+        7 => img.rotate270().fliph(),               // Rotate 270 + flip horizontal
+        8 => img.rotate270(),                       // Rotate 270
+        _ => img,
+    }
+}
+
 static LOCAL_TODO_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 fn generate_local_todo_id() -> String {
@@ -903,7 +1143,10 @@ impl AppState {
         let source_path = source_path
             .filter(|path| !path.is_empty())
             .ok_or_else(|| anyhow::anyhow!("请选择图片"))?;
-        image::open(source_path).map_err(|e| anyhow::anyhow!("无法打开图片: {e}"))
+        let path = std::path::Path::new(source_path);
+        let img = image::open(path).map_err(|e| anyhow::anyhow!("无法打开图片: {e}"))?;
+        // Apply EXIF orientation if present (e.g., portrait photos from phones)
+        Ok(apply_exif_orientation(img, path))
     }
 
     fn process_image(
@@ -1200,6 +1443,24 @@ impl AppState {
         crate::storage::save_json(&path, tasks)
     }
 
+    /// Stop all running image loop tasks — called on app startup
+    pub fn stop_all_image_loop_tasks_on_boot(&self) -> anyhow::Result<()> {
+        let mut tasks = self.load_image_loop_tasks()?;
+        let mut changed = false;
+        for task in &mut tasks {
+            if task.status == "running" {
+                task.status = "idle".to_string();
+                task.started_at = None;
+                task.updated_at = chrono::Utc::now().to_rfc3339();
+                changed = true;
+            }
+        }
+        if changed {
+            self.save_image_loop_tasks(&tasks)?;
+        }
+        Ok(())
+    }
+
     pub fn list_image_loop_tasks(&self) -> anyhow::Result<Vec<crate::models::ImageLoopTaskRecord>> {
         self.load_image_loop_tasks()
     }
@@ -1286,14 +1547,68 @@ impl AppState {
             anyhow::bail!("文件夹中没有图片，无法启动");
         }
 
+        // If task is already running, no need to spawn again
+        if task.status == "running" {
+            return Ok(task.clone());
+        }
+
         task.status = "running".to_string();
         task.current_index = 0;
         task.started_at = Some(chrono::Utc::now().to_rfc3339());
         task.error_message = None;
         task.updated_at = chrono::Utc::now().to_rfc3339();
 
+        let interval_seconds = task.interval_seconds;
         let updated = task.clone();
         self.save_image_loop_tasks(&tasks)?;
+
+        // Spawn background task for periodic image pushing using Tauri's async runtime
+        let data_dir = self.data_dir.clone();
+        tauri::async_runtime::spawn(async move {
+            // Push first image immediately on start
+            let first_result = execute_image_loop_push(data_dir.clone(), task_id).await;
+            if let Err(e) = first_result {
+                eprintln!("[image-loop] 任务 {} 第一次推送失败: {}", task_id, e);
+                return;
+            }
+
+            loop {
+                // Sleep for the interval duration
+                tokio::time::sleep(tokio::time::Duration::from_secs(interval_seconds as u64)).await;
+
+                // Check if task is still running before executing
+                let still_running = {
+                    let tasks: Vec<crate::models::ImageLoopTaskRecord> = match crate::storage::load_json(
+                        &data_dir.join("image_loop_tasks.json")
+                    ) {
+                        Ok(t) => t,
+                        Err(_) => break,
+                    };
+                    tasks.iter().find(|t| t.id == task_id).map(|t| t.status == "running").unwrap_or(false)
+                };
+
+                if !still_running {
+                    break;
+                }
+
+                // Execute push and check if task should stop
+                let result = execute_image_loop_push(data_dir.clone(), task_id).await;
+                match result {
+                    Ok(updated_task) => {
+                        // Check if task completed
+                        if updated_task.status != "running" {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        // Log error and stop task
+                        eprintln!("[image-loop] 任务 {} 推送失败: {}", task_id, e);
+                        break;
+                    }
+                }
+            }
+        });
+
         Ok(updated)
     }
 
@@ -1353,6 +1668,8 @@ impl AppState {
         // 加载并处理图片为 400x300
         let img = image::open(&image_path)
             .map_err(|e| anyhow::anyhow!("无法打开图片 {}: {}", image_file, e))?;
+        // Apply EXIF orientation if present
+        let img = apply_exif_orientation(img, &image_path);
         let processed = img.resize_to_fill(400, 300, image::imageops::FilterType::Lanczos3);
 
         // 编码为 PNG
@@ -2057,8 +2374,8 @@ mod tests {
         assert!(loaded.is_empty());
     }
 
-    #[test]
-    fn start_image_loop_task_sets_running_status() {
+    #[tokio::test]
+    async fn start_image_loop_task_sets_running_status() {
         let dir = tempfile::tempdir().unwrap();
         let state = test_state(&dir);
 
@@ -2103,8 +2420,8 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("没有图片"));
     }
 
-    #[test]
-    fn stop_image_loop_task_sets_idle_status() {
+    #[tokio::test]
+    async fn stop_image_loop_task_sets_idle_status() {
         let dir = tempfile::tempdir().unwrap();
         let state = test_state(&dir);
 

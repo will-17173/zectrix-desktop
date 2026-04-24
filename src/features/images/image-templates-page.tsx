@@ -4,7 +4,8 @@ import { ImageEditorDialog } from "./image-editor-dialog";
 import { ImageLoopTaskList } from "./image-loop-task-list";
 import { ImageLoopTaskDialog } from "./image-loop-task-dialog";
 import { useImageLoopRunner } from "./use-image-loop-runner";
-import { pushFolderImage, type ImageLoopTask, type ImageLoopTaskInput, type DeviceRecord } from "../../lib/tauri";
+import { type ImageLoopTask, type ImageLoopTaskInput, type DeviceRecord } from "../../lib/tauri";
+import { toast } from "../../components/ui/toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 export type ImageTemplateRecord = {
@@ -68,7 +69,6 @@ export function ImageTemplatesPage({
   const [templates, setTemplates] = useState<ImageTemplateWithThumbnail[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [pushingId, setPushingId] = useState<number | null>(null);
-  const [pushMessage, setPushMessage] = useState<string | null>(null);
   const [pageIds, setPageIds] = useState<Record<number, number>>({});
   const [loopTasks, setLoopTasks] = useState<ImageLoopTask[]>(imageLoopTasks);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -82,7 +82,12 @@ export function ImageTemplatesPage({
     setLoopTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
   }, []);
 
-  useImageLoopRunner(loopTasks, pushFolderImage, handleTaskUpdate);
+  // Refresh task list from backend
+  const refreshTasks = useCallback(async () => {
+    await onRefreshLoopTasks();
+  }, [onRefreshLoopTasks]);
+
+  useImageLoopRunner(loopTasks, refreshTasks);
 
   const handleCreateTask = async (input: ImageLoopTaskInput) => {
     await onCreateLoopTask(input);
@@ -174,8 +179,7 @@ export function ImageTemplatesPage({
   async function handlePush(templateId: number) {
     const deviceId = devices[0]?.deviceId;
     if (!deviceId) {
-      setPushMessage("没有可用设备");
-      setTimeout(() => setPushMessage(null), 3000);
+      toast.error("没有可用设备");
       return;
     }
 
@@ -183,13 +187,11 @@ export function ImageTemplatesPage({
     setPushingId(templateId);
     try {
       await onPushTemplate(templateId, deviceId, pageId);
-      setPushMessage(`推送成功，已发送到第 ${pageId} 页`);
+      toast.success(`推送成功，已发送到第 ${pageId} 页`);
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      setPushMessage(`推送失败: ${errorMsg}`);
+      toast.error(`推送失败: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setPushingId(null);
-      setTimeout(() => setPushMessage(null), 3000);
     }
   }
 
@@ -203,9 +205,7 @@ export function ImageTemplatesPage({
       await onDeleteTemplate(templateId);
       setTemplates((prev) => prev.filter((t) => t.id !== templateId));
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      setPushMessage(`删除失败: ${errorMsg}`);
-      setTimeout(() => setPushMessage(null), 3000);
+      toast.error(`删除失败: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -224,12 +224,6 @@ export function ImageTemplatesPage({
           导入图片
         </button>
       </div>
-
-      {pushMessage && (
-        <div className="rounded-md bg-blue-100 px-4 py-2 text-sm text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-          {pushMessage}
-        </div>
-      )}
 
       {editorOpen && (
         <ImageEditorDialog onSave={handleSave} onClose={() => setEditorOpen(false)} />
@@ -288,10 +282,10 @@ export function ImageTemplatesPage({
         ))}
       </ul>
 
-      {/* 循环相册区域 */}
+      {/* 文件夹轮播区域 */}
       <section className="mt-8 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">循环相册</h2>
+          <h2 className="text-lg font-semibold">文件夹轮播</h2>
           <button
             type="button"
             onClick={() => {

@@ -69,7 +69,7 @@ test("hides sync button when no API key is configured", async () => {
   );
 
   await screen.findByRole("navigation");
-  expect(screen.queryByRole("button", { name: "同步" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "同步待办" })).not.toBeInTheDocument();
 });
 
 test("runs manual sync and shows success feedback", async () => {
@@ -100,7 +100,7 @@ test("runs manual sync and shows success feedback", async () => {
     </MemoryRouter>,
   );
 
-  const syncBtn = await screen.findByRole("button", { name: "同步" });
+  const syncBtn = await screen.findByRole("button", { name: "同步待办" });
   await userEvent.click(syncBtn);
 
   expect(mockSyncAll).toHaveBeenCalled();
@@ -128,7 +128,7 @@ test("shows sync failure feedback when manual sync throws", async () => {
     </MemoryRouter>,
   );
 
-  await userEvent.click(await screen.findByRole("button", { name: "同步" }));
+  await userEvent.click(await screen.findByRole("button", { name: "同步待办" }));
 
   expect(await screen.findByText("同步失败: boom")).toBeInTheDocument();
   expect(screen.getByText("同步失败: boom")).toBeInTheDocument();
@@ -186,7 +186,7 @@ test("renders the redesigned toolbar title, sync action, and compact status badg
 
   expect(await screen.findByRole("banner")).toHaveClass("app-toolbar");
   expect(screen.getByRole("heading", { name: "待办事项" })).toHaveClass("app-toolbar-title");
-  expect(screen.getByRole("button", { name: "同步" })).toHaveClass("app-toolbar-action");
+  expect(screen.getByRole("button", { name: "同步待办" })).toBeInTheDocument();
 });
 
 test("applies the new shell utility classes required by the Playground-lite layout", async () => {

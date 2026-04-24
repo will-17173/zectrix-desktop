@@ -1,54 +1,43 @@
 import { useEffect, useRef } from "react";
 import type { ImageLoopTask } from "../../lib/tauri";
 
-type PushFolderImageFn = (taskId: number) => Promise<ImageLoopTask>;
-
+/**
+ * Hook to poll for running task status updates.
+ * The actual image pushing is now handled by Rust backend background tasks.
+ * This hook only triggers periodic refresh of the task list to show status updates.
+ */
 export function useImageLoopRunner(
   tasks: ImageLoopTask[],
-  pushFolderImage: PushFolderImageFn,
-  onTaskUpdate: (task: ImageLoopTask) => void,
+  refreshTasks: () => Promise<void>,
 ) {
-  const timersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const runningTasks = tasks.filter((t) => t.status === "running");
-    const runningIds = new Set(runningTasks.map((t) => t.id));
 
-    // 清理已停止任务的定时器
-    for (const [taskId, timer] of timersRef.current.entries()) {
-      if (!runningIds.has(taskId)) {
-        clearInterval(timer);
-        timersRef.current.delete(taskId);
+    // Clear poll interval if no running tasks
+    if (runningTasks.length === 0) {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
+      return;
     }
 
-    // 为运行中的任务创建定时器
-    for (const task of runningTasks) {
-      if (!timersRef.current.has(task.id)) {
-        const timer = setInterval(async () => {
-          try {
-            const updated = await pushFolderImage(task.id);
-            onTaskUpdate(updated);
-            if (updated.status !== "running") {
-              clearInterval(timer);
-              timersRef.current.delete(task.id);
-            }
-          } catch (e) {
-            // 错误已由后端记录，清理定时器
-            clearInterval(timer);
-            timersRef.current.delete(task.id);
-          }
-        }, task.intervalSeconds * 1000);
-
-        timersRef.current.set(task.id, timer);
-      }
+    // Poll every 5 seconds to refresh task status from backend
+    if (!pollIntervalRef.current) {
+      pollIntervalRef.current = setInterval(() => {
+        refreshTasks().catch((e) => {
+          console.error("[image-loop] 刷新任务状态失败:", e);
+        });
+      }, 5000);
     }
 
     return () => {
-      for (const timer of timersRef.current.values()) {
-        clearInterval(timer);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
-      timersRef.current.clear();
     };
-  }, [tasks, pushFolderImage, onTaskUpdate]);
+  }, [tasks, refreshTasks]);
 }

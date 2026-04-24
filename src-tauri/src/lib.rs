@@ -4,12 +4,22 @@ mod models;
 mod state;
 mod storage;
 
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(state::AppState::new().expect("app state"))
+        .setup(|app| {
+            // Stop all running image loop tasks on startup
+            let state = app.state::<state::AppState>();
+            if let Err(e) = state.stop_all_image_loop_tasks_on_boot() {
+                eprintln!("[startup] failed to stop image loop tasks: {e}");
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::config::load_bootstrap_state,
             commands::config::list_api_keys,

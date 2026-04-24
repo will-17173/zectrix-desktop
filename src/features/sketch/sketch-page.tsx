@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Paintbrush, Eraser } from "lucide-react";
+import { toast } from "../../components/ui/toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 type Device = { deviceId: string; alias: string; board: string };
@@ -24,7 +25,6 @@ export function SketchPage({ devices, onPushSketch }: Props) {
   const [brushSize, setBrushSize] = useState(4);
   const [selectedPageId, setSelectedPageId] = useState(1);
   const [isPushing, setIsPushing] = useState(false);
-  const [pushMessage, setPushMessage] = useState<string | null>(null);
 
   // 初始化 canvas
   useEffect(() => {
@@ -111,8 +111,7 @@ export function SketchPage({ devices, onPushSketch }: Props) {
 
     const deviceId = devices[0]?.deviceId;
     if (!deviceId) {
-      setPushMessage("没有可用设备");
-      setTimeout(() => setPushMessage(null), 3000);
+      toast.error("没有可用设备");
       return;
     }
 
@@ -120,13 +119,11 @@ export function SketchPage({ devices, onPushSketch }: Props) {
     try {
       const dataUrl = canvas.toDataURL("image/png");
       await onPushSketch(dataUrl, deviceId, selectedPageId);
-      setPushMessage(`推送成功，已发送到第 ${selectedPageId} 页`);
+      toast.success(`推送成功，已发送到第 ${selectedPageId} 页`);
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      setPushMessage(`推送失败: ${errorMsg}`);
+      toast.error(`推送失败: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setIsPushing(false);
-      setTimeout(() => setPushMessage(null), 3000);
     }
   }
 
@@ -138,12 +135,6 @@ export function SketchPage({ devices, onPushSketch }: Props) {
           <p className="text-sm text-gray-500">在画布上自由绘制，然后推送到设备。</p>
         </div>
       </div>
-
-      {pushMessage && (
-        <div className="rounded-md bg-blue-100 px-4 py-2 text-sm text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-          {pushMessage}
-        </div>
-      )}
 
       <div className="flex gap-6">
         {/* 工具栏 */}

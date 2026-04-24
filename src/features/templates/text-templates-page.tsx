@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "../../components/ui/toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 type Device = { deviceId: string; alias: string; board: string };
@@ -21,36 +22,31 @@ export function TextTemplatesPage({ devices, onPushText }: Props) {
   const [body, setBody] = useState("");
   const [pageId, setPageId] = useState(1);
   const [pushing, setPushing] = useState(false);
-  const [pushMessage, setPushMessage] = useState<string | null>(null);
 
   async function handlePush(e: React.FormEvent) {
     e.preventDefault();
 
     const deviceId = devices[0]?.deviceId;
     if (!deviceId) {
-      setPushMessage("没有可用设备");
-      setTimeout(() => setPushMessage(null), 3000);
+      toast.error("没有可用设备");
       return;
     }
 
     if (!title.trim() && !body.trim()) {
-      setPushMessage("请输入标题或正文");
-      setTimeout(() => setPushMessage(null), 3000);
+      toast.error("请输入标题或正文");
       return;
     }
 
     setPushing(true);
     try {
       await onPushText(title, body, deviceId, pageId);
-      setPushMessage(`推送成功，已发送到第 ${pageId} 页`);
+      toast.success(`推送成功，已发送到第 ${pageId} 页`);
       setTitle("");
       setBody("");
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      setPushMessage(`推送失败: ${errorMsg}`);
+      toast.error(`推送失败: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setPushing(false);
-      setTimeout(() => setPushMessage(null), 3000);
     }
   }
 
@@ -62,12 +58,6 @@ export function TextTemplatesPage({ devices, onPushText }: Props) {
           <p className="text-sm text-gray-500">输入标题和正文后推送到设备的指定页面。</p>
         </div>
       </div>
-
-      {pushMessage && (
-        <div className="rounded-md bg-blue-100 px-4 py-2 text-sm text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-          {pushMessage}
-        </div>
-      )}
 
       <form onSubmit={handlePush} className="space-y-4 max-w-md p-4 rounded-xl border border-gray-200 bg-white/85 shadow-sm">
         <div className="space-y-2">

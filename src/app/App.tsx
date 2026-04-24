@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { AppSidebar } from "../components/layout/app-sidebar";
 import { AppToolbar } from "../components/layout/app-toolbar";
+import { Toaster, toast } from "../components/ui/toast";
 import { FreeLayoutPage } from "../features/free-layout/free-layout-page";
 import { ImageTemplatesPage } from "../features/images/image-templates-page";
 import { SettingsPage } from "../features/settings/settings-page";
@@ -63,7 +64,6 @@ const sectionTitles: Record<string, string> = {
 export default function App() {
   const [state, setState] = useState<BootstrapState>(emptyState);
   const [syncState, setSyncState] = useState<SyncState>("idle");
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const location = useLocation();
 
   useEffect(() => {
@@ -77,17 +77,6 @@ export default function App() {
     };
   }, []);
 
-  // 同步成功或失败后 3 秒清除状态
-  useEffect(() => {
-    if (syncState === "success" || syncState === "error" || syncState === "offline") {
-      const timer = setTimeout(() => {
-        setSyncState("idle");
-        setSyncMessage(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [syncState]);
-
   function reload() {
     void loadBootstrapState().then(setState);
   }
@@ -99,17 +88,17 @@ export default function App() {
 
   async function handleSync() {
     setSyncState("syncing");
-    setSyncMessage("正在同步数据…");
+    toast.loading("正在同步数据…", { id: "sync" });
     try {
       const next = await syncAll();
       setState(next);
       setSyncState("success");
-      setSyncMessage("同步成功");
+      toast.success("同步成功", { id: "sync" });
     } catch (e) {
       console.error("[sync] 同步失败:", e);
       const errorMsg = e instanceof Error ? e.message : String(e);
       setSyncState(navigator.onLine ? "error" : "offline");
-      setSyncMessage(navigator.onLine ? `同步失败: ${errorMsg}` : "当前离线，无法同步");
+      toast.error(navigator.onLine ? `同步失败: ${errorMsg}` : "当前离线，无法同步", { id: "sync" });
     }
   }
 
@@ -148,6 +137,7 @@ export default function App() {
       return (
         <PageManagerPage
           devices={state.devices}
+          onRefreshLoopTasks={refreshLoopTasks}
         />
       );
     }
@@ -220,6 +210,8 @@ export default function App() {
         <TodoListPage
           todos={state.todos}
           devices={state.devices}
+          syncState={syncState}
+          onSync={hasApiKey ? handleSync : undefined}
           onCreateTodo={createLocalTodo}
           onToggleTodo={toggleTodoStatus}
           onDeleteTodo={deleteLocalTodo}
@@ -235,12 +227,8 @@ export default function App() {
       <AppSidebar />
       <main className="app-main">
         <div className="app-main-frame" aria-label="应用工作区外框">
-          <AppToolbar
-            title={title}
-            syncState={syncState}
-            syncMessage={syncMessage}
-            onSync={hasApiKey && path !== "/text-push" ? handleSync : undefined}
-          />
+          <AppToolbar title={title} />
+          <Toaster position="top-center" />
           <section className="app-canvas" aria-label="主内容画布">
             {renderContent()}
           </section>

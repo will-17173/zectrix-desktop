@@ -39,7 +39,7 @@ describe("ImageLoopTaskList", () => {
       />
     );
 
-    expect(screen.getByText(/暂无循环相册任务/)).toBeInTheDocument();
+    expect(screen.getByText(/暂无文件夹轮播任务/)).toBeInTheDocument();
   });
 
   it("renders task cards for each task", () => {

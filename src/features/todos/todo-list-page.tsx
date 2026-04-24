@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { TodoRecord, TodoUpsertInput } from "../../lib/tauri";
+import type { SyncState } from "../sync/sync-status";
+import { toast } from "../../components/ui/toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../components/ui/dialog";
 
@@ -32,6 +34,8 @@ const PRIORITY_OPTIONS = [
 type Props = {
   todos: TodoRecord[];
   devices: Device[];
+  syncState?: SyncState;
+  onSync?: () => void;
   onCreateTodo: (input: TodoUpsertInput) => Promise<TodoRecord>;
   onToggleTodo: (localId: string) => Promise<TodoRecord>;
   onDeleteTodo: (localId: string) => Promise<void>;
@@ -52,6 +56,8 @@ function formatDeadline(todo: TodoRecord) {
 export function TodoListPage({
   todos: initialTodos,
   devices,
+  syncState = "idle",
+  onSync,
   onCreateTodo,
   onToggleTodo,
   onDeleteTodo,
@@ -72,7 +78,6 @@ export function TodoListPage({
   const [repeatDay, setRepeatDay] = useState("");
   const [priority, setPriority] = useState("0");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [pushError, setPushError] = useState<string | null>(null);
   const [pushingId, setPushingId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [editingTodo, setEditingTodo] = useState<TodoRecord | null>(null);
@@ -144,15 +149,15 @@ export function TodoListPage({
     const todo = todos.find((t) => t.localId === localId);
     const target = todo?.deviceId ?? devices[0]?.deviceId;
     if (!target) {
-      setPushError("没有可用的设备，请在设置中添加设备");
+      toast.error("没有可用的设备，请在设置中添加设备");
       return;
     }
-    setPushError(null);
     setPushingId(localId);
     try {
       await onPushTodo(localId, target);
+      toast.success("待办推送成功");
     } catch (e) {
-      setPushError(String(e));
+      toast.error(`推送失败: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setPushingId(null);
     }
@@ -180,15 +185,26 @@ export function TodoListPage({
     <section className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">待办列表</h2>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
+        <div className="flex items-center gap-3">
+          {onSync && (
             <button
               type="button"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={syncState === "syncing"}
+              onClick={onSync}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
             >
-              添加待办
+              {syncState === "syncing" ? "同步中..." : "同步待办"}
             </button>
-          </DialogTrigger>
+          )}
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                添加待办
+              </button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingTodo ? "编辑待办" : "添加待办"}</DialogTitle>
@@ -386,14 +402,10 @@ export function TodoListPage({
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <ul className="space-y-3">
-        {pushError && (
-          <li className="rounded-2xl border border-red-200 bg-red-50 p-4">
-            <p role="alert" className="text-red-600 text-sm">{pushError}</p>
-          </li>
-        )}
         {visibleTodos.map((todo) => (
           <li key={todo.localId} className="rounded-2xl border border-gray-200 bg-white/85 p-4 shadow-sm">
             <div className="flex items-start gap-3">

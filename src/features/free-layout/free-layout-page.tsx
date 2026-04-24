@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "../../components/ui/toast";
 
 type Device = { deviceId: string; alias: string; board: string };
 
@@ -29,32 +30,27 @@ export function FreeLayoutPage({ devices, onPushText }: Props) {
   const [fontSize, setFontSize] = useState(20);
   const [pageId, setPageId] = useState(1);
   const [isPushing, setIsPushing] = useState(false);
-  const [pushMessage, setPushMessage] = useState<string | null>(null);
 
   async function handlePush() {
     if (!text.trim()) {
-      setPushMessage("请输入文本内容");
-      setTimeout(() => setPushMessage(null), 3000);
+      toast.error("请输入文本内容");
       return;
     }
 
     const deviceId = devices[0]?.deviceId;
     if (!deviceId) {
-      setPushMessage("没有可用设备");
-      setTimeout(() => setPushMessage(null), 3000);
+      toast.error("没有可用设备");
       return;
     }
 
     setIsPushing(true);
     try {
       await onPushText(text, fontSize, deviceId, pageId);
-      setPushMessage(`推送成功，已发送到第 ${pageId} 页`);
+      toast.success(`推送成功，已发送到第 ${pageId} 页`);
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      setPushMessage(`推送失败: ${errorMsg}`);
+      toast.error(`推送失败: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setIsPushing(false);
-      setTimeout(() => setPushMessage(null), 3000);
     }
   }
 
@@ -66,12 +62,6 @@ export function FreeLayoutPage({ devices, onPushText }: Props) {
           <p className="text-sm text-gray-500">输入文本内容，设置字号，推送到设备的指定页面。</p>
         </div>
       </div>
-
-      {pushMessage && (
-        <div className="rounded-md bg-blue-100 px-4 py-2 text-sm text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-          {pushMessage}
-        </div>
-      )}
 
       <div className="space-y-4 max-w-md p-4 rounded-xl border border-gray-200 bg-white/85 shadow-sm">
         <div className="space-y-2">
