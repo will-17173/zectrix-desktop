@@ -7,6 +7,7 @@ import { ImageTemplatesPage } from "../features/images/image-templates-page";
 import { SettingsPage } from "../features/settings/settings-page";
 import { SketchPage } from "../features/sketch/sketch-page";
 import { TextTemplatesPage } from "../features/templates/text-templates-page";
+import { PageManagerPage } from "../features/page-manager/page-manager-page";
 import { TodoListPage } from "../features/todos/todo-list-page";
 import {
   addDeviceCache,
@@ -47,6 +48,7 @@ const sectionTitles: Record<string, string> = {
   "/image-push": "图片推送",
   "/free-layout": "自由排版",
   "/text-push": "文本推送",
+  "/page-manager": "页面管理",
   "/settings": "设置",
 };
 
@@ -126,6 +128,13 @@ export default function App() {
             await removeDeviceCache(id);
             reload();
           }}
+        />
+      );
+    }
+    if (path === "/page-manager") {
+      return (
+        <PageManagerPage
+          devices={state.devices}
         />
       );
     }
