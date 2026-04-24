@@ -17,6 +17,7 @@ import {
   deleteImageTemplate,
   getImageThumbnail,
   loadBootstrapState,
+  pushFreeLayoutText,
   pushImageTemplate,
   pushSketch,
   pushText,
@@ -37,6 +38,7 @@ const emptyState: BootstrapState = {
   textTemplates: [],
   imageTemplates: [],
   lastSyncTime: null,
+  pageCache: [],
 };
 
 const sectionTitles: Record<string, string> = {
@@ -170,7 +172,7 @@ export default function App() {
       return (
         <FreeLayoutPage
           devices={state.devices}
-          onPushText={pushText}
+          onPushText={pushFreeLayoutText}
         />
       );
     }
