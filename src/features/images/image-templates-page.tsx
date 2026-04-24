@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ImageEditorDialog } from "./image-editor-dialog";
-
-type Device = { deviceId: string; alias: string; board: string };
+import { ImageLoopTaskList } from "./image-loop-task-list";
+import { ImageLoopTaskDialog } from "./image-loop-task-dialog";
+import { useImageLoopRunner } from "./use-image-loop-runner";
+import { pushFolderImage, type ImageLoopTask, type ImageLoopTaskInput, type DeviceRecord } from "@/lib/tauri";
 
 export type ImageTemplateRecord = {
   id: number;
@@ -16,7 +18,8 @@ type ImageTemplateWithThumbnail = ImageTemplateRecord & {
 
 type Props = {
   templates: ImageTemplateRecord[];
-  devices: Device[];
+  devices: DeviceRecord[];
+  imageLoopTasks: ImageLoopTask[];
   onSaveTemplate: (input: {
     name: string;
     sourcePath?: string;
@@ -29,6 +32,12 @@ type Props = {
   onPushTemplate: (templateId: number, deviceId: string, pageId: number) => Promise<void>;
   onDeleteTemplate: (templateId: number) => Promise<void>;
   onLoadThumbnail?: (templateId: number) => Promise<string>;
+  onCreateLoopTask: (input: ImageLoopTaskInput) => Promise<void>;
+  onUpdateLoopTask: (taskId: number, input: ImageLoopTaskInput) => Promise<void>;
+  onDeleteLoopTask: (taskId: number) => Promise<void>;
+  onStartLoopTask: (taskId: number) => Promise<ImageLoopTask>;
+  onStopLoopTask: (taskId: number) => Promise<ImageLoopTask>;
+  onRefreshLoopTasks: () => Promise<void>;
 };
 
 const PAGE_OPTIONS = [
@@ -42,16 +51,69 @@ const PAGE_OPTIONS = [
 export function ImageTemplatesPage({
   templates: initialTemplates,
   devices,
+  imageLoopTasks,
   onSaveTemplate,
   onPushTemplate,
   onDeleteTemplate,
   onLoadThumbnail,
+  onCreateLoopTask,
+  onUpdateLoopTask,
+  onDeleteLoopTask,
+  onStartLoopTask,
+  onStopLoopTask,
+  onRefreshLoopTasks,
 }: Props) {
   const [templates, setTemplates] = useState<ImageTemplateWithThumbnail[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [pushingId, setPushingId] = useState<number | null>(null);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
   const [pageIds, setPageIds] = useState<Record<number, number>>({});
+  const [loopTasks, setLoopTasks] = useState<ImageLoopTask[]>(imageLoopTasks);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<ImageLoopTask | undefined>();
+
+  useEffect(() => {
+    setLoopTasks(imageLoopTasks);
+  }, [imageLoopTasks]);
+
+  const handleTaskUpdate = useCallback((updated: ImageLoopTask) => {
+    setLoopTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  }, []);
+
+  useImageLoopRunner(loopTasks, pushFolderImage, handleTaskUpdate);
+
+  const handleCreateTask = async (input: ImageLoopTaskInput) => {
+    await onCreateLoopTask(input);
+    await onRefreshLoopTasks();
+  };
+
+  const handleUpdateTask = async (input: ImageLoopTaskInput) => {
+    if (editingTask) {
+      await onUpdateLoopTask(editingTask.id, input);
+      await onRefreshLoopTasks();
+      setEditingTask(undefined);
+    }
+  };
+
+  const handleDeleteLoopTask = async (taskId: number) => {
+    await onDeleteLoopTask(taskId);
+    setLoopTasks((prev) => prev.filter((t) => t.id !== taskId));
+  };
+
+  const handleStartTask = async (taskId: number) => {
+    const started = await onStartLoopTask(taskId);
+    handleTaskUpdate(started);
+  };
+
+  const handleStopTask = async (taskId: number) => {
+    const stopped = await onStopLoopTask(taskId);
+    handleTaskUpdate(stopped);
+  };
+
+  const handleEditTask = (task: ImageLoopTask) => {
+    setEditingTask(task);
+    setDialogOpen(true);
+  };
 
   // 初始化并加载缩略图
   useEffect(() => {
@@ -215,6 +277,43 @@ export function ImageTemplatesPage({
           </li>
         ))}
       </ul>
+
+      {/* 循环相册区域 */}
+      <section className="mt-8 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">循环相册</h2>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingTask(undefined);
+              setDialogOpen(true);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            新建任务
+          </button>
+        </div>
+
+        <ImageLoopTaskList
+          tasks={loopTasks}
+          devices={devices}
+          onStart={handleStartTask}
+          onStop={handleStopTask}
+          onEdit={handleEditTask}
+          onDelete={handleDeleteLoopTask}
+        />
+      </section>
+
+      <ImageLoopTaskDialog
+        open={dialogOpen}
+        devices={devices}
+        editingTask={editingTask}
+        onSave={editingTask ? handleUpdateTask : handleCreateTask}
+        onClose={() => {
+          setDialogOpen(false);
+          setEditingTask(undefined);
+        }}
+      />
     </section>
   );
 }
