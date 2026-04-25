@@ -86,14 +86,23 @@ pub fn format_stock_push_text(
 }
 
 fn number_field(value: &serde_json::Value, field: &str, code: &str) -> anyhow::Result<f64> {
+    // 停牌或退市股票返回 "-"，视为无数据
+    if let Some(text) = value.as_str() {
+        if text == "-" {
+            return Ok(0.0);
+        }
+        return text
+            .parse::<f64>()
+            .map_err(|_| anyhow::anyhow!("股票 {code} 的 {field} 字段无法解析"));
+    }
+
     if let Some(number) = value.as_f64() {
         return Ok(number);
     }
 
-    if let Some(text) = value.as_str() {
-        return text
-            .parse::<f64>()
-            .map_err(|_| anyhow::anyhow!("股票 {code} 的 {field} 字段无法解析"));
+    // null 或缺失也视为无数据
+    if value.is_null() {
+        return Ok(0.0);
     }
 
     anyhow::bail!("股票 {code} 缺少有效的 {field} 字段")
@@ -290,5 +299,27 @@ mod tests {
             .to_string();
 
         assert!(error.contains("000001"));
+    }
+
+    #[test]
+    fn handles_suspended_stock_with_dash_values() {
+        let body = r#"{
+            "rc": 0,
+            "data": {
+                "total": 1,
+                "diff": [
+                    {"f2":"-","f3":"-","f4":"-","f12":"600001","f14":"邯郸钢铁"}
+                ]
+            }
+        }"#;
+
+        let quotes = parse_eastmoney_quotes(body, &["600001".to_string()])
+            .unwrap();
+
+        assert_eq!(quotes[0].code, "600001");
+        assert_eq!(quotes[0].name, "邯郸钢铁");
+        assert_eq!(quotes[0].price, 0.0);
+        assert_eq!(quotes[0].change, 0.0);
+        assert_eq!(quotes[0].change_percent, 0.0);
     }
 }
