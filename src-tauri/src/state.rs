@@ -1,7 +1,9 @@
 use crate::models::{
-    ApiKeyRecord, AppConfig, BootstrapState, CropRect, DeviceRecord, ImageEditInput,
-    ImageTemplateRecord, ImageTemplateSaveInput, PageCacheRecord, StockPushTaskRecord,
-    StockWatchRecord, TextTemplateInput, TextTemplateRecord, TodoRecord, TodoUpsertInput,
+    ApiKeyRecord, AppConfig, BootstrapState, CropRect, CustomPluginInput,
+    CustomPluginRecord, DeviceRecord, ImageEditInput, ImageTemplateRecord,
+    ImageTemplateSaveInput, PageCacheRecord, PluginLoopTaskInput, PluginLoopTaskRecord,
+    StockPushTaskRecord, StockWatchRecord, TextTemplateInput, TextTemplateRecord,
+    TodoRecord, TodoUpsertInput,
 };
 use crate::storage::{load_json, save_json};
 use image::GenericImageView;
@@ -546,6 +548,8 @@ impl AppState {
         let image_templates = load_json(&self.data_dir.join("image_templates.json"))?;
         let page_cache = self.load_page_cache()?;
         let image_loop_tasks = self.load_image_loop_tasks()?;
+        let custom_plugins = self.load_custom_plugins()?;
+        let plugin_loop_tasks = self.load_plugin_loop_tasks()?;
         let stock_watchlist = self.load_stock_watchlist()?;
         let stock_push_task = self.load_stock_push_task()?;
 
@@ -558,6 +562,8 @@ impl AppState {
             last_sync_time: config.last_sync_time,
             page_cache,
             image_loop_tasks,
+            custom_plugins,
+            plugin_loop_tasks,
             stock_watchlist,
             stock_push_task,
         })
@@ -695,6 +701,149 @@ impl AppState {
         }
 
         self.save_stock_watchlist(&records)
+    }
+
+    fn load_custom_plugins(&self) -> anyhow::Result<Vec<CustomPluginRecord>> {
+        let path = self.data_dir.join("custom_plugins.json");
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+
+        load_json(&path)
+    }
+
+    pub fn list_custom_plugins(&self) -> anyhow::Result<Vec<CustomPluginRecord>> {
+        self.load_custom_plugins()
+    }
+
+    fn save_custom_plugins(&self, plugins: &[CustomPluginRecord]) -> anyhow::Result<()> {
+        let plugins = plugins.to_vec();
+        save_json(&self.data_dir.join("custom_plugins.json"), &plugins)
+    }
+
+    pub fn save_custom_plugin(&self, input: CustomPluginInput) -> anyhow::Result<CustomPluginRecord> {
+        let mut plugins = self.load_custom_plugins()?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let name = input.name.trim().to_string();
+        let description = input.description.trim().to_string();
+
+        if let Some(plugin_id) = input.id {
+            let plugin = plugins
+                .iter_mut()
+                .find(|plugin| plugin.id == plugin_id)
+                .ok_or_else(|| anyhow::anyhow!("插件 {plugin_id} 未找到"))?;
+
+            plugin.name = name;
+            plugin.description = description;
+            plugin.code = input.code;
+            plugin.updated_at = now;
+
+            let updated = plugin.clone();
+            self.save_custom_plugins(&plugins)?;
+            return Ok(updated);
+        }
+
+        let next_id = plugins.iter().map(|plugin| plugin.id).max().unwrap_or(0) + 1;
+        let record = CustomPluginRecord {
+            id: next_id,
+            name,
+            description,
+            code: input.code,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+
+        plugins.push(record.clone());
+        self.save_custom_plugins(&plugins)?;
+        Ok(record)
+    }
+
+    pub fn delete_custom_plugin(&self, plugin_id: i64) -> anyhow::Result<()> {
+        let mut plugins = self.load_custom_plugins()?;
+        plugins.retain(|plugin| plugin.id != plugin_id);
+        self.save_custom_plugins(&plugins)
+    }
+
+    fn load_plugin_loop_tasks(&self) -> anyhow::Result<Vec<PluginLoopTaskRecord>> {
+        let path = self.data_dir.join("plugin_loop_tasks.json");
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+
+        load_json(&path)
+    }
+
+    pub fn list_plugin_loop_tasks(&self) -> anyhow::Result<Vec<PluginLoopTaskRecord>> {
+        self.load_plugin_loop_tasks()
+    }
+
+    fn save_plugin_loop_tasks(&self, tasks: &[PluginLoopTaskRecord]) -> anyhow::Result<()> {
+        let tasks = tasks.to_vec();
+        save_json(&self.data_dir.join("plugin_loop_tasks.json"), &tasks)
+    }
+
+    pub fn create_plugin_loop_task(
+        &self,
+        input: PluginLoopTaskInput,
+    ) -> anyhow::Result<PluginLoopTaskRecord> {
+        let mut tasks = self.load_plugin_loop_tasks()?;
+        let next_id = tasks.iter().map(|task| task.id).max().unwrap_or(0) + 1;
+        let now = chrono::Utc::now().to_rfc3339();
+
+        let record = PluginLoopTaskRecord {
+            id: next_id,
+            plugin_kind: input.plugin_kind,
+            plugin_id: input.plugin_id,
+            name: input.name.trim().to_string(),
+            device_id: input.device_id,
+            page_id: input.page_id,
+            interval_seconds: input.interval_seconds,
+            duration_type: input.duration_type,
+            end_time: input.end_time,
+            duration_minutes: input.duration_minutes,
+            status: "idle".to_string(),
+            last_push_at: None,
+            error_message: None,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+
+        tasks.push(record.clone());
+        self.save_plugin_loop_tasks(&tasks)?;
+        Ok(record)
+    }
+
+    pub fn update_plugin_loop_task(
+        &self,
+        task_id: i64,
+        input: PluginLoopTaskInput,
+    ) -> anyhow::Result<PluginLoopTaskRecord> {
+        let mut tasks = self.load_plugin_loop_tasks()?;
+        let task = tasks
+            .iter_mut()
+            .find(|task| task.id == task_id)
+            .ok_or_else(|| anyhow::anyhow!("任务 {task_id} 未找到"))?;
+
+        task.plugin_kind = input.plugin_kind;
+        task.plugin_id = input.plugin_id;
+        task.name = input.name.trim().to_string();
+        task.device_id = input.device_id;
+        task.page_id = input.page_id;
+        task.interval_seconds = input.interval_seconds;
+        task.duration_type = input.duration_type;
+        task.end_time = input.end_time;
+        task.duration_minutes = input.duration_minutes;
+        task.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let updated = task.clone();
+        self.save_plugin_loop_tasks(&tasks)?;
+        Ok(updated)
+    }
+
+    pub fn delete_plugin_loop_task(&self, task_id: i64) -> anyhow::Result<()> {
+        let mut tasks = self.load_plugin_loop_tasks()?;
+        tasks.retain(|task| task.id != task_id);
+        self.save_plugin_loop_tasks(&tasks)
     }
 
     pub fn get_page_cache_list(&self, device_id: &str) -> anyhow::Result<Vec<PageCacheRecord>> {
@@ -1078,6 +1227,19 @@ impl AppState {
         let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
 
         self.push_text(&text, Some(20), device_id, Some(page_id)).await
+    }
+
+    pub async fn fetch_stock_quotes(&self) -> anyhow::Result<Vec<crate::stock_quote::StockQuote>> {
+        let records = self.load_stock_watchlist()?;
+        if records.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let codes = records
+            .iter()
+            .map(|record| record.code.clone())
+            .collect::<Vec<_>>();
+        crate::stock_quote::fetch_eastmoney_quotes(&codes).await
     }
 
     // ==================== Stock Push Task Methods ====================
@@ -2192,9 +2354,19 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let state = test_state(&temp);
 
-        let error = state.add_stock_watch("830000").unwrap_err().to_string();
+        let error = state.add_stock_watch("abc").unwrap_err().to_string();
 
-        assert!(error.contains("仅支持"));
+        assert!(error.contains("6 位数字"));
+    }
+
+    #[test]
+    fn accepts_any_six_digit_stock_code() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = test_state(&temp);
+
+        // 任意 6 位数字都可以
+        let created = state.add_stock_watch("830000").unwrap();
+        assert_eq!(created.code, "830000");
     }
 
     #[test]
@@ -2675,6 +2847,44 @@ mod tests {
 
         let loaded = state.list_image_loop_tasks().unwrap();
         assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn custom_plugin_crud_persists_to_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        let created = state
+            .save_custom_plugin(crate::models::CustomPluginInput {
+                id: None,
+                name: "天气插件".into(),
+                description: "查询天气并推送".into(),
+                code: "return { type: 'text', text: 'sunny' };".into(),
+            })
+            .unwrap();
+
+        assert!(created.id > 0);
+        assert_eq!(created.name, "天气插件");
+
+        let updated = state
+            .save_custom_plugin(crate::models::CustomPluginInput {
+                id: Some(created.id),
+                name: "天气插件 v2".into(),
+                description: "更新描述".into(),
+                code: "return { type: 'text', text: 'cloudy' };".into(),
+            })
+            .unwrap();
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.name, "天气插件 v2");
+        assert!(updated.updated_at >= updated.created_at);
+
+        let listed = state.list_custom_plugins().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].code, "return { type: 'text', text: 'cloudy' };");
+
+        state.delete_custom_plugin(created.id).unwrap();
+        assert!(state.list_custom_plugins().unwrap().is_empty());
     }
 
     #[tokio::test]

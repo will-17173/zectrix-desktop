@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
-import type { StockWatchRecord, StockPushTaskRecord } from "../../lib/tauri";
+import type { StockWatchRecord, StockPushTaskRecord, StockQuote } from "../../lib/tauri";
 
 type Device = { deviceId: string; alias: string; board: string };
 
@@ -29,10 +29,12 @@ const INTERVAL_OPTIONS = [
 type Props = {
   devices: Device[];
   watchlist: StockWatchRecord[];
+  quotes: StockQuote[];
   pushTask: StockPushTaskRecord | null;
   onAddStock: (code: string) => Promise<StockWatchRecord>;
   onRemoveStock: (code: string) => Promise<void>;
   onPushStocks: (deviceId: string, pageId: number) => Promise<void>;
+  onFetchQuotes: () => Promise<StockQuote[]>;
   onCreateTask: (deviceId: string, pageId: number, intervalSeconds: number) => Promise<StockPushTaskRecord>;
   onStartTask: () => Promise<StockPushTaskRecord>;
   onStopTask: () => Promise<StockPushTaskRecord>;
@@ -41,10 +43,6 @@ type Props = {
 function validateCode(code: string): string | null {
   if (!/^\d{6}$/.test(code)) {
     return "股票代码必须是 6 位数字";
-  }
-
-  if (!/^[036]/.test(code)) {
-    return "仅支持 0、3、6 开头的 A 股代码";
   }
 
   return null;
@@ -57,10 +55,12 @@ function formatInterval(seconds: number): string {
 export function StockPushPage({
   devices,
   watchlist,
+  quotes,
   pushTask,
   onAddStock,
   onRemoveStock,
   onPushStocks,
+  onFetchQuotes,
   onCreateTask,
   onStartTask,
   onStopTask,
@@ -73,6 +73,13 @@ export function StockPushPage({
   const [removingCodes, setRemovingCodes] = useState<string[]>([]);
   const [isPushing, setIsPushing] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+
+  // 获取行情数据用于显示有效性
+  useEffect(() => {
+    if (watchlist.length > 0) {
+      onFetchQuotes().catch(console.error);
+    }
+  }, [watchlist, onFetchQuotes]);
 
   useEffect(() => {
     setStocks(watchlist);
@@ -193,6 +200,9 @@ export function StockPushPage({
 
   const isRunning = pushTask?.status === "running";
 
+  // 根据 quotes 数据判断股票有效性
+  const getQuoteForCode = (code: string) => quotes.find((q) => q.code === code);
+
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -234,20 +244,30 @@ export function StockPushPage({
             <p className="text-sm text-gray-500">暂无股票代码</p>
           ) : (
             <ul className="divide-y divide-gray-100 overflow-hidden rounded-md border border-gray-200 bg-white">
-              {stocks.map((stock) => (
-                <li key={stock.code} className="flex items-center justify-between gap-3 px-3 py-2">
-                  <span className="font-mono text-sm">{stock.code}</span>
-                  <button
-                    type="button"
-                    aria-label={`删除 ${stock.code}`}
-                    onClick={() => handleRemove(stock.code)}
-                    disabled={removingCodes.includes(stock.code)}
-                    className="text-sm text-red-600 hover:text-red-700 disabled:text-gray-400"
+              {stocks.map((stock) => {
+                const quote = getQuoteForCode(stock.code);
+                const isValid = quote?.valid ?? false;
+                return (
+                  <li
+                    key={stock.code}
+                    className={`flex items-center justify-between gap-3 px-3 py-2 ${!isValid ? "bg-gray-100 text-gray-400" : ""}`}
                   >
-                    {removingCodes.includes(stock.code) ? "删除中..." : "删除"}
-                  </button>
-                </li>
-              ))}
+                    <span className="font-mono text-sm">
+                      {stock.code}
+                      {quote && !isValid && <span className="ml-2 text-xs">({quote.name})</span>}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`删除 ${stock.code}`}
+                      onClick={() => handleRemove(stock.code)}
+                      disabled={removingCodes.includes(stock.code)}
+                      className="text-sm text-red-600 hover:text-red-700 disabled:text-gray-400"
+                    >
+                      {removingCodes.includes(stock.code) ? "删除中..." : "删除"}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

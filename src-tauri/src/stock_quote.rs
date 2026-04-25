@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StockQuote {
     pub code: String,
     pub name: String,
     pub price: f64,
     pub change: f64,
     pub change_percent: f64,
+    pub valid: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,16 +37,12 @@ pub fn normalize_stock_code(code: &str) -> anyhow::Result<String> {
         anyhow::bail!("股票代码必须是 6 位数字");
     }
 
-    let first = normalized.chars().next().unwrap();
-    if first != '0' && first != '3' && first != '6' {
-        anyhow::bail!("仅支持 0、3、6 开头的 A 股代码");
-    }
-
     Ok(normalized.to_string())
 }
 
 pub fn stock_code_to_secid(code: &str) -> anyhow::Result<String> {
     let normalized = normalize_stock_code(code)?;
+    // 6 开头为上海证券交易所 (前缀1)，其他为深圳证券交易所 (前缀0)
     let prefix = if normalized.starts_with('6') {
         "1"
     } else {
@@ -66,12 +63,18 @@ pub fn format_stock_push_text(
     quotes: &[StockQuote],
     now: chrono::DateTime<chrono::Local>,
 ) -> String {
+    let valid_quotes: Vec<&StockQuote> = quotes.iter().filter(|q| q.valid).collect();
+
+    if valid_quotes.is_empty() {
+        return format!("更新时间：{}\n暂无有效股票数据", now.format("%Y-%m-%d %H:%M:%S"));
+    }
+
     let mut lines = vec![
         format!("更新时间：{}", now.format("%Y-%m-%d %H:%M:%S")),
         String::new(),
     ];
 
-    lines.extend(quotes.iter().map(|quote| {
+    lines.extend(valid_quotes.iter().map(|quote| {
         format!(
             "{} {} {:.2} {} {}%",
             quote.code,
@@ -120,21 +123,42 @@ pub fn parse_eastmoney_quotes(
     let mut by_code = HashMap::new();
     for item in data.diff {
         let code = item.f12;
-        if item.f14.trim().is_empty() {
-            anyhow::bail!("股票 {code} 缺少名称");
-        }
+        let name = item.f14.trim();
+
+        // 名称为空或价格为 "-" 标记为无效
+        let is_valid = !name.is_empty()
+            && item.f2.as_str() != Some("-")
+            && !item.f2.is_null();
+
+        let price = if is_valid {
+            number_field(&item.f2, "f2", &code)?
+        } else {
+            0.0
+        };
+        let change_percent = if is_valid {
+            number_field(&item.f3, "f3", &code)?
+        } else {
+            0.0
+        };
+        let change = if is_valid {
+            number_field(&item.f4, "f4", &code)?
+        } else {
+            0.0
+        };
 
         let quote = StockQuote {
             code: code.clone(),
-            name: item.f14,
-            price: number_field(&item.f2, "f2", &code)?,
-            change_percent: number_field(&item.f3, "f3", &code)?,
-            change: number_field(&item.f4, "f4", &code)?,
+            name: if name.is_empty() { "未知".to_string() } else { name.to_string() },
+            price,
+            change_percent,
+            change,
+            valid: is_valid,
         };
         by_code.insert(code, quote);
     }
 
-    requested_codes
+    // 处理请求的代码，API 未返回的标记为无效
+    Ok(requested_codes
         .iter()
         .map(|code| normalize_stock_code(code))
         .collect::<anyhow::Result<Vec<_>>>()?
@@ -142,9 +166,20 @@ pub fn parse_eastmoney_quotes(
         .map(|code| {
             by_code
                 .remove(&code)
-                .ok_or_else(|| anyhow::anyhow!("行情接口未返回股票 {code}"))
+                .map(|mut quote| {
+                    quote.code = code.clone();
+                    quote
+                })
+                .unwrap_or_else(|| StockQuote {
+                    code: code.clone(),
+                    name: "未知".to_string(),
+                    price: 0.0,
+                    change: 0.0,
+                    change_percent: 0.0,
+                    valid: false,
+                })
         })
-        .collect()
+        .collect())
 }
 
 pub async fn fetch_eastmoney_quotes(codes: &[String]) -> anyhow::Result<Vec<StockQuote>> {
@@ -185,6 +220,8 @@ mod tests {
         assert_eq!(stock_code_to_secid("600519").unwrap(), "1.600519");
         assert_eq!(stock_code_to_secid("000001").unwrap(), "0.000001");
         assert_eq!(stock_code_to_secid("300750").unwrap(), "0.300750");
+        // 任意 6 位数字都可以
+        assert_eq!(stock_code_to_secid("830000").unwrap(), "0.830000");
     }
 
     #[test]
@@ -193,10 +230,6 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("6 位数字"));
-        assert!(stock_code_to_secid("830000")
-            .unwrap_err()
-            .to_string()
-            .contains("仅支持"));
         assert!(stock_code_to_secid("abc001")
             .unwrap_err()
             .to_string()
@@ -216,6 +249,7 @@ mod tests {
                     price: 1458.49,
                     change: 39.49,
                     change_percent: 2.78,
+                    valid: true,
                 },
                 StockQuote {
                     code: "600000".to_string(),
@@ -223,6 +257,7 @@ mod tests {
                     price: 9.45,
                     change: -0.09,
                     change_percent: -0.94,
+                    valid: true,
                 },
             ],
             now,
@@ -231,6 +266,39 @@ mod tests {
         assert_eq!(
             text,
             "更新时间：2026-04-25 10:30:12\n\n600519 贵州茅台 1458.49 +39.49 +2.78%\n600000 浦发银行 9.45 -0.09 -0.94%"
+        );
+    }
+
+    #[test]
+    fn formats_stock_push_text_filters_invalid_quotes() {
+        let now = chrono::Local
+            .with_ymd_and_hms(2026, 4, 25, 10, 30, 12)
+            .unwrap();
+        let text = format_stock_push_text(
+            &[
+                StockQuote {
+                    code: "600519".to_string(),
+                    name: "贵州茅台".to_string(),
+                    price: 1458.49,
+                    change: 39.49,
+                    change_percent: 2.78,
+                    valid: true,
+                },
+                StockQuote {
+                    code: "999999".to_string(),
+                    name: "未知".to_string(),
+                    price: 0.0,
+                    change: 0.0,
+                    change_percent: 0.0,
+                    valid: false,
+                },
+            ],
+            now,
+        );
+
+        assert_eq!(
+            text,
+            "更新时间：2026-04-25 10:30:12\n\n600519 贵州茅台 1458.49 +39.49 +2.78%"
         );
     }
 
@@ -253,8 +321,10 @@ mod tests {
 
         assert_eq!(quotes[0].code, "000001");
         assert_eq!(quotes[0].name, "平安银行");
+        assert!(quotes[0].valid);
         assert_eq!(quotes[1].code, "600519");
         assert_eq!(quotes[1].name, "贵州茅台");
+        assert!(quotes[1].valid);
     }
 
     #[test]
@@ -283,7 +353,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_missing_eastmoney_quote() {
+    fn marks_missing_stock_as_invalid() {
         let body = r#"{
             "rc": 0,
             "data": {
@@ -294,11 +364,14 @@ mod tests {
             }
         }"#;
 
-        let error = parse_eastmoney_quotes(body, &["600519".to_string(), "000001".to_string()])
-            .unwrap_err()
-            .to_string();
+        let quotes = parse_eastmoney_quotes(body, &["600519".to_string(), "000001".to_string()])
+            .unwrap();
 
-        assert!(error.contains("000001"));
+        assert_eq!(quotes[0].code, "600519");
+        assert!(quotes[0].valid);
+        assert_eq!(quotes[1].code, "000001");
+        assert!(!quotes[1].valid);
+        assert_eq!(quotes[1].name, "未知");
     }
 
     #[test]
@@ -318,6 +391,7 @@ mod tests {
 
         assert_eq!(quotes[0].code, "600001");
         assert_eq!(quotes[0].name, "邯郸钢铁");
+        assert!(!quotes[0].valid);
         assert_eq!(quotes[0].price, 0.0);
         assert_eq!(quotes[0].change, 0.0);
         assert_eq!(quotes[0].change_percent, 0.0);

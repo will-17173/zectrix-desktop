@@ -34,6 +34,13 @@ pub async fn push_stock_quotes(
 }
 
 #[tauri::command]
+pub async fn fetch_stock_quotes(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<Vec<crate::stock_quote::StockQuote>, String> {
+    state.fetch_stock_quotes().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn get_stock_push_task(
     state: tauri::State<'_, crate::state::AppState>,
 ) -> Result<Option<crate::models::StockPushTaskRecord>, String> {

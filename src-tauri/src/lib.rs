@@ -54,6 +54,7 @@ pub fn run() {
             commands::stocks::add_stock_watch,
             commands::stocks::remove_stock_watch,
             commands::stocks::push_stock_quotes,
+            commands::stocks::fetch_stock_quotes,
             commands::stocks::get_stock_push_task,
             commands::stocks::create_stock_push_task,
             commands::stocks::start_stock_push_task,

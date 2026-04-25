@@ -62,6 +62,15 @@ export type StockPushTaskRecord = {
   updatedAt: string;
 };
 
+export type StockQuote = {
+  code: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  valid: boolean;
+};
+
 export type BootstrapState = {
   apiKeys: ApiKeyRecord[];
   devices: DeviceRecord[];
@@ -335,6 +344,10 @@ export async function removeStockWatch(code: string): Promise<void> {
 
 export async function pushStockQuotes(deviceId: string, pageId: number): Promise<void> {
   return invoke("push_stock_quotes", { deviceId, pageId });
+}
+
+export async function fetchStockQuotes(): Promise<StockQuote[]> {
+  return invoke<StockQuote[]>("fetch_stock_quotes");
 }
 
 export async function getStockPushTask(): Promise<StockPushTaskRecord | null> {

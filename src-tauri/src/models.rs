@@ -39,6 +39,10 @@ pub struct BootstrapState {
     #[serde(default)]
     pub image_loop_tasks: Vec<ImageLoopTaskRecord>,
     #[serde(default)]
+    pub custom_plugins: Vec<CustomPluginRecord>,
+    #[serde(default)]
+    pub plugin_loop_tasks: Vec<PluginLoopTaskRecord>,
+    #[serde(default)]
     pub stock_watchlist: Vec<StockWatchRecord>,
     #[serde(default)]
     pub stock_push_task: Option<StockPushTaskRecord>,
@@ -164,6 +168,60 @@ pub struct PageCacheRecord {
     pub thumbnail: Option<String>,
     pub metadata: Option<String>,
     pub pushed_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomPluginRecord {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    pub code: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomPluginInput {
+    pub id: Option<i64>,
+    pub name: String,
+    pub description: String,
+    pub code: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginLoopTaskRecord {
+    pub id: i64,
+    pub plugin_kind: String,
+    pub plugin_id: String,
+    pub name: String,
+    pub device_id: String,
+    pub page_id: u32,
+    pub interval_seconds: u32,
+    pub duration_type: String,
+    pub end_time: Option<String>,
+    pub duration_minutes: Option<u32>,
+    pub status: String,
+    pub last_push_at: Option<String>,
+    pub error_message: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginLoopTaskInput {
+    pub plugin_kind: String,
+    pub plugin_id: String,
+    pub name: String,
+    pub device_id: String,
+    pub page_id: u32,
+    pub interval_seconds: u32,
+    pub duration_type: String,
+    pub end_time: Option<String>,
+    pub duration_minutes: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

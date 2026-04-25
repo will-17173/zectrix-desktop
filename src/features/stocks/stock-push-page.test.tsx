@@ -68,6 +68,9 @@ import type { StockPushTaskRecord } from "../../lib/tauri";
 
 const devices = [{ deviceId: "AA:BB", alias: "桌面屏", board: "note" }];
 const watchlist = [{ code: "600519", createdAt: "2026-04-25T10:30:00Z" }];
+const defaultQuotes = [
+  { code: "600519", name: "贵州茅台", price: 1458.49, change: 39.49, changePercent: 2.78, valid: true },
+];
 
 const defaultPushTask: StockPushTaskRecord = {
   id: 1,
@@ -102,10 +105,12 @@ test("renders stock controls and existing watchlist", () => {
     <StockPushPage
       devices={devices}
       watchlist={watchlist}
+      quotes={defaultQuotes}
       pushTask={null}
       onAddStock={vi.fn()}
       onRemoveStock={vi.fn()}
       onPushStocks={vi.fn()}
+      onFetchQuotes={vi.fn().mockResolvedValue(defaultQuotes)}
       onCreateTask={vi.fn()}
       onStartTask={vi.fn()}
       onStopTask={vi.fn()}
@@ -128,10 +133,12 @@ test("rejects invalid stock code before calling add", async () => {
       <StockPushPage
         devices={devices}
         watchlist={[]}
+        quotes={[]}
         pushTask={null}
         onAddStock={onAddStock}
         onRemoveStock={vi.fn()}
         onPushStocks={vi.fn()}
+        onFetchQuotes={vi.fn().mockResolvedValue([])}
         onCreateTask={vi.fn()}
         onStartTask={vi.fn()}
         onStopTask={vi.fn()}
@@ -139,11 +146,11 @@ test("rejects invalid stock code before calling add", async () => {
     </>,
   );
 
-  await user.type(screen.getByLabelText("股票代码"), "830000");
+  await user.type(screen.getByLabelText("股票代码"), "abc");
   await user.click(screen.getByRole("button", { name: "添加" }));
 
   expect(onAddStock).not.toHaveBeenCalled();
-  expect(await screen.findByText("仅支持 0、3、6 开头的 A 股代码")).toBeInTheDocument();
+  expect(await screen.findByText("股票代码必须是 6 位数字")).toBeInTheDocument();
 });
 
 test("adds and removes stocks", async () => {
@@ -155,10 +162,12 @@ test("adds and removes stocks", async () => {
     <StockPushPage
       devices={devices}
       watchlist={watchlist}
+      quotes={defaultQuotes}
       pushTask={null}
       onAddStock={onAddStock}
       onRemoveStock={onRemoveStock}
       onPushStocks={vi.fn()}
+      onFetchQuotes={vi.fn().mockResolvedValue(defaultQuotes)}
       onCreateTask={vi.fn()}
       onStartTask={vi.fn()}
       onStopTask={vi.fn()}
@@ -189,6 +198,11 @@ test("keeps both clicked delete buttons disabled during concurrent removals unti
     return Promise.reject(new Error(`unexpected stock code: ${code}`));
   });
 
+  const twoQuotes = [
+    { code: "600519", name: "贵州茅台", price: 1458.49, change: 39.49, changePercent: 2.78, valid: true },
+    { code: "000001", name: "平安银行", price: 11.0, change: 0.0, changePercent: 0.0, valid: true },
+  ];
+
   render(
     <StockPushPage
       devices={devices}
@@ -196,10 +210,12 @@ test("keeps both clicked delete buttons disabled during concurrent removals unti
         { code: "600519", createdAt: "2026-04-25T10:30:00Z" },
         { code: "000001", createdAt: "2026-04-25T10:31:00Z" },
       ]}
+      quotes={twoQuotes}
       pushTask={null}
       onAddStock={vi.fn()}
       onRemoveStock={onRemoveStock}
       onPushStocks={vi.fn()}
+      onFetchQuotes={vi.fn().mockResolvedValue(twoQuotes)}
       onCreateTask={vi.fn()}
       onStartTask={vi.fn()}
       onStopTask={vi.fn()}
@@ -238,10 +254,12 @@ test("pushes stocks to first device and selected page", async () => {
     <StockPushPage
       devices={devices}
       watchlist={watchlist}
+      quotes={defaultQuotes}
       pushTask={null}
       onAddStock={vi.fn()}
       onRemoveStock={vi.fn()}
       onPushStocks={onPushStocks}
+      onFetchQuotes={vi.fn().mockResolvedValue(defaultQuotes)}
       onCreateTask={vi.fn()}
       onStartTask={vi.fn()}
       onStopTask={vi.fn()}
@@ -260,10 +278,12 @@ test("shows start loop button when task is not running", () => {
     <StockPushPage
       devices={devices}
       watchlist={watchlist}
+      quotes={defaultQuotes}
       pushTask={defaultPushTask}
       onAddStock={vi.fn()}
       onRemoveStock={vi.fn()}
       onPushStocks={vi.fn()}
+      onFetchQuotes={vi.fn().mockResolvedValue(defaultQuotes)}
       onCreateTask={vi.fn()}
       onStartTask={vi.fn()}
       onStopTask={vi.fn()}
@@ -286,10 +306,12 @@ test("shows stop loop button when task is running", () => {
     <StockPushPage
       devices={devices}
       watchlist={watchlist}
+      quotes={defaultQuotes}
       pushTask={runningTask}
       onAddStock={vi.fn()}
       onRemoveStock={vi.fn()}
       onPushStocks={vi.fn()}
+      onFetchQuotes={vi.fn().mockResolvedValue(defaultQuotes)}
       onCreateTask={vi.fn()}
       onStartTask={vi.fn()}
       onStopTask={vi.fn()}
@@ -312,10 +334,12 @@ test("starts loop task with correct parameters", async () => {
       <StockPushPage
         devices={devices}
         watchlist={watchlist}
+        quotes={defaultQuotes}
         pushTask={null}
         onAddStock={vi.fn()}
         onRemoveStock={vi.fn()}
         onPushStocks={vi.fn()}
+        onFetchQuotes={vi.fn().mockResolvedValue(defaultQuotes)}
         onCreateTask={onCreateTask}
         onStartTask={onStartTask}
         onStopTask={vi.fn()}
@@ -354,10 +378,12 @@ test("stops loop task", async () => {
       <StockPushPage
         devices={devices}
         watchlist={watchlist}
+        quotes={defaultQuotes}
         pushTask={runningTask}
         onAddStock={vi.fn()}
         onRemoveStock={vi.fn()}
         onPushStocks={vi.fn()}
+        onFetchQuotes={vi.fn().mockResolvedValue(defaultQuotes)}
         onCreateTask={vi.fn()}
         onStartTask={vi.fn()}
         onStopTask={onStopTask}

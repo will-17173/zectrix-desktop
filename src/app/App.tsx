@@ -43,8 +43,10 @@ import {
   createStockPushTask,
   startStockPushTask,
   stopStockPushTask,
+  fetchStockQuotes,
   type BootstrapState,
   type ImageLoopTaskInput,
+  type StockQuote,
 } from "../lib/tauri";
 import type { SyncState } from "../features/sync/sync-status";
 
@@ -75,6 +77,7 @@ const sectionTitles: Record<string, string> = {
 export default function App() {
   const [state, setState] = useState<BootstrapState>(emptyState);
   const [syncState, setSyncState] = useState<SyncState>("idle");
+  const [stockQuotes, setStockQuotes] = useState<StockQuote[]>([]);
   const location = useLocation();
 
   useEffect(() => {
@@ -236,6 +239,7 @@ export default function App() {
         <StockPushPage
           devices={state.devices}
           watchlist={state.stockWatchlist}
+          quotes={stockQuotes}
           pushTask={state.stockPushTask ?? null}
           onAddStock={async (code) => {
             const record = await addStockWatch(code);
@@ -250,6 +254,11 @@ export default function App() {
             }));
           }}
           onPushStocks={pushStockQuotes}
+          onFetchQuotes={async () => {
+            const quotes = await fetchStockQuotes();
+            setStockQuotes(quotes);
+            return quotes;
+          }}
           onCreateTask={async (deviceId, pageId, intervalSeconds) => {
             const task = await createStockPushTask(deviceId, pageId, intervalSeconds);
             setState((prev) => ({ ...prev, stockPushTask: task }));
