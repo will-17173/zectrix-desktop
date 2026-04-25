@@ -2,10 +2,11 @@ use crate::models::{
     ApiKeyRecord, AppConfig, BootstrapState, CropRect, CustomPluginInput,
     CustomPluginRecord, DeviceRecord, ImageEditInput, ImageTemplateRecord,
     ImageTemplateSaveInput, PageCacheRecord, PluginLoopTaskInput, PluginLoopTaskRecord,
-    StockPushTaskRecord, StockWatchRecord, TextTemplateInput, TextTemplateRecord,
-    TodoRecord, TodoUpsertInput,
+    PluginRunResult, StockPushTaskRecord, StockWatchRecord, TextTemplateInput,
+    TextTemplateRecord, TodoRecord, TodoUpsertInput,
 };
 use crate::storage::{load_json, save_json};
+use base64::Engine;
 use image::GenericImageView;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -527,6 +528,10 @@ fn todo_from_legacy(legacy: LegacyTodoRecord) -> TodoRecord {
     }
 }
 
+fn page_cache_uses_thumbnail(content_type: &str) -> bool {
+    matches!(content_type, "sketch" | "image" | "plugin_image")
+}
+
 pub struct AppState {
     pub data_dir: PathBuf,
 }
@@ -764,6 +769,258 @@ impl AppState {
         self.save_custom_plugins(&plugins)
     }
 
+    fn find_custom_plugin(&self, plugin_id: &str) -> anyhow::Result<CustomPluginRecord> {
+        let parsed_id = plugin_id
+            .trim()
+            .parse::<i64>()
+            .map_err(|_| anyhow::anyhow!("插件 ID {plugin_id} 无效"))?;
+
+        self.load_custom_plugins()?
+            .into_iter()
+            .find(|plugin| plugin.id == parsed_id)
+            .ok_or_else(|| anyhow::anyhow!("插件 {plugin_id} 未找到"))
+    }
+
+    pub async fn run_plugin_once(
+        &self,
+        plugin_kind: &str,
+        plugin_id: &str,
+    ) -> anyhow::Result<PluginRunResult> {
+        let plugin = match plugin_kind {
+            "custom" => self.find_custom_plugin(plugin_id)?,
+            "builtin" => anyhow::bail!("内置插件尚未接入"),
+            other => anyhow::bail!("未知插件类型: {other}"),
+        };
+
+        let raw = crate::plugin_runtime::run_plugin_code(&plugin.code).await?;
+        let output = crate::plugin_output::parse_plugin_output(raw)?;
+        Self::plugin_output_to_run_result(output)
+    }
+
+    pub async fn push_plugin_once(
+        &self,
+        plugin_kind: &str,
+        plugin_id: &str,
+        device_id: &str,
+        page_id: u32,
+    ) -> anyhow::Result<()> {
+        let plugin = match plugin_kind {
+            "custom" => self.find_custom_plugin(plugin_id)?,
+            "builtin" => anyhow::bail!("内置插件尚未接入"),
+            other => anyhow::bail!("未知插件类型: {other}"),
+        };
+
+        let raw = crate::plugin_runtime::run_plugin_code(&plugin.code).await?;
+        let output = crate::plugin_output::parse_plugin_output(raw)?;
+
+        self.push_plugin_output(
+            plugin_kind,
+            plugin_id,
+            &plugin.name,
+            output,
+            device_id,
+            page_id,
+        )
+        .await
+    }
+
+    fn plugin_output_to_run_result(
+        output: crate::plugin_output::PluginOutput,
+    ) -> anyhow::Result<PluginRunResult> {
+        match output {
+            crate::plugin_output::PluginOutput::Text(text) => Ok(PluginRunResult {
+                output_type: "text".to_string(),
+                title: text.title,
+                text: Some(text.text),
+                image_data_url: None,
+                preview_png_base64: None,
+                metadata: text.metadata,
+            }),
+            crate::plugin_output::PluginOutput::TextImage(text_image) => {
+                let rendered_png = crate::text_image::render_text_to_png(
+                    &text_image.text,
+                    &text_image.style,
+                )?;
+
+                Ok(PluginRunResult {
+                    output_type: "textImage".to_string(),
+                    title: text_image.title,
+                    text: Some(text_image.text),
+                    image_data_url: None,
+                    preview_png_base64: Some(
+                        base64::engine::general_purpose::STANDARD.encode(rendered_png),
+                    ),
+                    metadata: text_image.metadata,
+                })
+            }
+            crate::plugin_output::PluginOutput::Image(image) => Ok(PluginRunResult {
+                output_type: "image".to_string(),
+                title: image.title,
+                text: None,
+                image_data_url: Some(image.image_data_url),
+                preview_png_base64: None,
+                metadata: image.metadata,
+            }),
+        }
+    }
+
+    async fn push_plugin_output(
+        &self,
+        plugin_kind: &str,
+        plugin_id: &str,
+        plugin_name: &str,
+        output: crate::plugin_output::PluginOutput,
+        device_id: &str,
+        page_id: u32,
+    ) -> anyhow::Result<()> {
+        let device = self
+            .list_device_cache()?
+            .into_iter()
+            .find(|candidate| candidate.device_id.eq_ignore_ascii_case(device_id))
+            .ok_or_else(|| anyhow::anyhow!("设备 {device_id} 未找到"))?;
+        let api_key = self.get_api_key_by_id(device.api_key_id)?;
+        let now = chrono::Utc::now().to_rfc3339();
+
+        match output {
+            crate::plugin_output::PluginOutput::Text(text) => {
+                crate::api::client::push_text(
+                    &api_key,
+                    device_id,
+                    &text.text,
+                    Some(text.font_size),
+                    Some(page_id),
+                )
+                .await?;
+
+                let record = PageCacheRecord {
+                    device_id: device_id.to_string(),
+                    page_id,
+                    content_type: "plugin_text".to_string(),
+                    thumbnail: Some(text.text.chars().take(100).collect()),
+                    metadata: Some(Self::plugin_cache_metadata(
+                        plugin_name,
+                        plugin_kind,
+                        plugin_id,
+                        "text",
+                        text.title.as_deref(),
+                        text.metadata.as_ref(),
+                        &now,
+                    )),
+                    pushed_at: now,
+                };
+                self.save_page_cache_record(record)?;
+            }
+            crate::plugin_output::PluginOutput::TextImage(text_image) => {
+                let rendered_png = crate::text_image::render_text_to_png(
+                    &text_image.text,
+                    &text_image.style,
+                )?;
+                crate::api::client::push_image(&api_key, device_id, rendered_png.clone(), page_id)
+                    .await?;
+
+                let thumbnail_filename = format!(
+                    "thumb_{}_{}.png",
+                    device_id.replace(':', "_"),
+                    page_id
+                );
+                let thumbnail = self.save_image_thumbnail(&rendered_png, &thumbnail_filename)?;
+
+                let record = PageCacheRecord {
+                    device_id: device_id.to_string(),
+                    page_id,
+                    content_type: "plugin_image".to_string(),
+                    thumbnail: Some(thumbnail),
+                    metadata: Some(Self::plugin_cache_metadata(
+                        plugin_name,
+                        plugin_kind,
+                        plugin_id,
+                        "textImage",
+                        text_image.title.as_deref(),
+                        text_image.metadata.as_ref(),
+                        &now,
+                    )),
+                    pushed_at: now,
+                };
+                self.save_page_cache_record(record)?;
+            }
+            crate::plugin_output::PluginOutput::Image(image) => {
+                let png_bytes = Self::decode_plugin_image_to_png(&image.image_data_url)?;
+                crate::api::client::push_image(&api_key, device_id, png_bytes.clone(), page_id)
+                    .await?;
+
+                let thumbnail_filename = format!(
+                    "thumb_{}_{}.png",
+                    device_id.replace(':', "_"),
+                    page_id
+                );
+                let thumbnail = self.save_image_thumbnail(&png_bytes, &thumbnail_filename)?;
+
+                let record = PageCacheRecord {
+                    device_id: device_id.to_string(),
+                    page_id,
+                    content_type: "plugin_image".to_string(),
+                    thumbnail: Some(thumbnail),
+                    metadata: Some(Self::plugin_cache_metadata(
+                        plugin_name,
+                        plugin_kind,
+                        plugin_id,
+                        "image",
+                        image.title.as_deref(),
+                        image.metadata.as_ref(),
+                        &now,
+                    )),
+                    pushed_at: now,
+                };
+                self.save_page_cache_record(record)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn plugin_cache_metadata(
+        plugin_name: &str,
+        plugin_kind: &str,
+        plugin_id: &str,
+        output_type: &str,
+        title: Option<&str>,
+        metadata: Option<&serde_json::Value>,
+        run_at: &str,
+    ) -> String {
+        serde_json::json!({
+            "pluginName": plugin_name,
+            "pluginKind": plugin_kind,
+            "pluginId": plugin_id,
+            "outputType": output_type,
+            "title": title,
+            "metadata": metadata.cloned(),
+            "runAt": run_at,
+        })
+        .to_string()
+    }
+
+    fn decode_plugin_image_to_png(data_url: &str) -> anyhow::Result<Vec<u8>> {
+        if !data_url.contains(";base64,") {
+            anyhow::bail!("图片数据格式错误");
+        }
+
+        let (_, payload) = data_url
+            .split_once(',')
+            .ok_or_else(|| anyhow::anyhow!("图片数据格式错误"))?;
+        let image_bytes = base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .map_err(|error| anyhow::anyhow!("图片解码失败: {error}"))?;
+        let image = image::load_from_memory(&image_bytes)
+            .map_err(|error| anyhow::anyhow!("无法读取图片: {error}"))?;
+        let resized = image.resize_to_fill(400, 300, image::imageops::FilterType::Lanczos3);
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        resized
+            .write_to(&mut cursor, image::ImageFormat::Png)
+            .map_err(|error| anyhow::anyhow!("编码 PNG 失败: {error}"))?;
+
+        Ok(cursor.into_inner())
+    }
+
     fn load_plugin_loop_tasks(&self) -> anyhow::Result<Vec<PluginLoopTaskRecord>> {
         let path = self.data_dir.join("plugin_loop_tasks.json");
         if !path.exists() {
@@ -846,6 +1103,77 @@ impl AppState {
         self.save_plugin_loop_tasks(&tasks)
     }
 
+    pub fn start_plugin_loop_task(&self, task_id: i64) -> anyhow::Result<PluginLoopTaskRecord> {
+        let mut tasks = self.load_plugin_loop_tasks()?;
+        let task = tasks
+            .iter_mut()
+            .find(|task| task.id == task_id)
+            .ok_or_else(|| anyhow::anyhow!("插件循环任务 {task_id} 不存在"))?;
+
+        task.status = "running".to_string();
+        task.error_message = None;
+        task.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let updated = task.clone();
+        self.save_plugin_loop_tasks(&tasks)?;
+        Ok(updated)
+    }
+
+    pub fn stop_plugin_loop_task(&self, task_id: i64) -> anyhow::Result<PluginLoopTaskRecord> {
+        let mut tasks = self.load_plugin_loop_tasks()?;
+        let task = tasks
+            .iter_mut()
+            .find(|task| task.id == task_id)
+            .ok_or_else(|| anyhow::anyhow!("插件循环任务 {task_id} 不存在"))?;
+
+        task.status = "idle".to_string();
+        task.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let updated = task.clone();
+        self.save_plugin_loop_tasks(&tasks)?;
+        Ok(updated)
+    }
+
+    pub fn mark_plugin_loop_task_pushed(
+        &self,
+        task_id: i64,
+    ) -> anyhow::Result<PluginLoopTaskRecord> {
+        let mut tasks = self.load_plugin_loop_tasks()?;
+        let task = tasks
+            .iter_mut()
+            .find(|task| task.id == task_id)
+            .ok_or_else(|| anyhow::anyhow!("插件循环任务 {task_id} 不存在"))?;
+        let now = chrono::Utc::now().to_rfc3339();
+
+        task.last_push_at = Some(now.clone());
+        task.error_message = None;
+        task.updated_at = now;
+
+        let updated = task.clone();
+        self.save_plugin_loop_tasks(&tasks)?;
+        Ok(updated)
+    }
+
+    pub fn mark_plugin_loop_task_error(
+        &self,
+        task_id: i64,
+        error_message: &str,
+    ) -> anyhow::Result<PluginLoopTaskRecord> {
+        let mut tasks = self.load_plugin_loop_tasks()?;
+        let task = tasks
+            .iter_mut()
+            .find(|task| task.id == task_id)
+            .ok_or_else(|| anyhow::anyhow!("插件循环任务 {task_id} 不存在"))?;
+
+        task.status = "error".to_string();
+        task.error_message = Some(error_message.to_string());
+        task.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let updated = task.clone();
+        self.save_plugin_loop_tasks(&tasks)?;
+        Ok(updated)
+    }
+
     pub fn get_page_cache_list(&self, device_id: &str) -> anyhow::Result<Vec<PageCacheRecord>> {
         let all = self.load_page_cache()?;
         let filtered: Vec<PageCacheRecord> = all
@@ -866,7 +1194,7 @@ impl AppState {
 
         // 删除缩略图文件（如果是图片类型）
         if let Some(rec) = &record {
-            if rec.content_type == "sketch" || rec.content_type == "image" {
+            if page_cache_uses_thumbnail(&rec.content_type) {
                 if let Some(thumbnail_path) = &rec.thumbnail {
                     let thumb_path = self.data_dir.join("thumbnails").join(thumbnail_path);
                     if std::fs::metadata(&thumb_path).is_ok() {
@@ -911,7 +1239,7 @@ impl AppState {
 
         // 如果有旧的缩略图文件，删除它
         if let Some(old_rec) = old {
-            if old_rec.content_type == "sketch" || old_rec.content_type == "image" {
+            if page_cache_uses_thumbnail(&old_rec.content_type) {
                 if let Some(thumbnail_path) = &old_rec.thumbnail {
                     let thumb_path = self.data_dir.join("thumbnails").join(thumbnail_path);
                     if std::fs::metadata(&thumb_path).is_ok() {
@@ -2887,6 +3215,52 @@ mod tests {
         assert!(state.list_custom_plugins().unwrap().is_empty());
     }
 
+    #[tokio::test]
+    async fn run_plugin_once_returns_text_output_shape_for_custom_plugin() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        let created = state
+            .save_custom_plugin(crate::models::CustomPluginInput {
+                id: None,
+                name: "文本插件".into(),
+                description: "返回文本".into(),
+                code: "return { type: 'text', text: 'hello' };".into(),
+            })
+            .unwrap();
+
+        let result = state
+            .run_plugin_once("custom", &created.id.to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(result.output_type, "text");
+        assert_eq!(result.text.as_deref(), Some("hello"));
+    }
+
+    #[tokio::test]
+    async fn run_plugin_once_returns_text_image_preview_shape_for_custom_plugin() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        let created = state
+            .save_custom_plugin(crate::models::CustomPluginInput {
+                id: None,
+                name: "图文插件".into(),
+                description: "返回图文".into(),
+                code: "return { type: 'textImage', text: 'hello plugin' };".into(),
+            })
+            .unwrap();
+
+        let result = state
+            .run_plugin_once("custom", &created.id.to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(result.output_type, "textImage");
+        assert!(result.preview_png_base64.is_some());
+    }
+
     #[test]
     fn plugin_loop_task_crud_persists_to_json() {
         let dir = tempfile::tempdir().unwrap();
@@ -2937,6 +3311,54 @@ mod tests {
 
         state.delete_plugin_loop_task(created.id).unwrap();
         assert!(state.list_plugin_loop_tasks().unwrap().is_empty());
+    }
+
+    #[test]
+    fn start_plugin_loop_task_sets_running_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+        let task = state
+            .create_plugin_loop_task(crate::models::PluginLoopTaskInput {
+                plugin_kind: "custom".into(),
+                plugin_id: "1".into(),
+                name: "循环".into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 1,
+                interval_seconds: 60,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
+
+        let started = state.start_plugin_loop_task(task.id).unwrap();
+
+        assert_eq!(started.status, "running");
+        assert!(started.error_message.is_none());
+    }
+
+    #[test]
+    fn stop_plugin_loop_task_sets_idle_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+        let task = state
+            .create_plugin_loop_task(crate::models::PluginLoopTaskInput {
+                plugin_kind: "custom".into(),
+                plugin_id: "1".into(),
+                name: "循环".into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 1,
+                interval_seconds: 60,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
+
+        state.start_plugin_loop_task(task.id).unwrap();
+        let stopped = state.stop_plugin_loop_task(task.id).unwrap();
+
+        assert_eq!(stopped.status, "idle");
     }
 
     #[tokio::test]

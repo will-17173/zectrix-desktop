@@ -246,15 +246,16 @@ export function StockPushPage({
             <ul className="divide-y divide-gray-100 overflow-hidden rounded-md border border-gray-200 bg-white">
               {stocks.map((stock) => {
                 const quote = getQuoteForCode(stock.code);
-                const isValid = quote?.valid ?? false;
+                const isInvalid = quote ? !quote.valid : false;
+                  const invalidName = quote && !quote.valid ? quote.name : null;
                 return (
                   <li
                     key={stock.code}
-                    className={`flex items-center justify-between gap-3 px-3 py-2 ${!isValid ? "bg-gray-100 text-gray-400" : ""}`}
+                    className={`flex items-center justify-between gap-3 px-3 py-2 ${isInvalid ? "bg-gray-100 text-gray-400" : ""}`}
                   >
                     <span className="font-mono text-sm">
                       {stock.code}
-                      {quote && !isValid && <span className="ml-2 text-xs">({quote.name})</span>}
+                        {invalidName ? <span className="ml-2 text-xs">({invalidName})</span> : null}
                     </span>
                     <button
                       type="button"

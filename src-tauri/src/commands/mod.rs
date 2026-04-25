@@ -3,6 +3,7 @@ pub mod devices;
 pub mod image_loop;
 pub mod images;
 pub mod page_cache;
+pub mod plugins;
 pub mod stocks;
 pub mod templates;
 pub mod todos;

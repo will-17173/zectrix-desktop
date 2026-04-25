@@ -80,6 +80,8 @@ export type BootstrapState = {
   lastSyncTime: string | null;
   pageCache: Array<PageCacheRecord>;
   imageLoopTasks: Array<ImageLoopTask>;
+  customPlugins: Array<CustomPluginRecord>;
+  pluginLoopTasks: Array<PluginLoopTask>;
   stockWatchlist: Array<StockWatchRecord>;
   stockPushTask: StockPushTaskRecord | null;
 };
@@ -286,12 +288,104 @@ export type PageCacheRecord = {
   pushedAt: string;
 };
 
+export type CustomPluginRecord = {
+  id: number;
+  name: string;
+  description: string;
+  code: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CustomPluginInput = {
+  id?: number;
+  name: string;
+  description: string;
+  code: string;
+};
+
+export type PluginRunResult = {
+  outputType: "text" | "textImage" | "image";
+  title?: string;
+  text?: string;
+  imageDataUrl?: string;
+  previewPngBase64?: string;
+  metadata?: unknown;
+};
+
+export type PluginLoopTask = {
+  id: number;
+  pluginKind: string;
+  pluginId: string;
+  name: string;
+  deviceId: string;
+  pageId: number;
+  intervalSeconds: number;
+  durationType: "none" | "until_time" | "for_duration";
+  endTime?: string;
+  durationMinutes?: number;
+  status: "idle" | "running" | "completed" | "error";
+  lastPushAt?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PluginLoopTaskInput = Omit<
+  PluginLoopTask,
+  "id" | "status" | "lastPushAt" | "errorMessage" | "createdAt" | "updatedAt"
+>;
+
 export async function getPageCacheList(deviceId: string): Promise<PageCacheRecord[]> {
   return invoke<PageCacheRecord[]>("get_page_cache_list", { deviceId });
 }
 
 export async function deletePageCache(deviceId: string, pageId: number): Promise<void> {
   return invoke("delete_page_cache", { deviceId, pageId });
+}
+
+export async function saveCustomPlugin(input: CustomPluginInput): Promise<CustomPluginRecord> {
+  return invoke<CustomPluginRecord>("save_custom_plugin", { input });
+}
+
+export async function deleteCustomPlugin(pluginId: number): Promise<void> {
+  return invoke("delete_custom_plugin", { pluginId });
+}
+
+export async function runPluginOnce(pluginKind: string, pluginId: string): Promise<PluginRunResult> {
+  return invoke<PluginRunResult>("run_plugin_once", { pluginKind, pluginId });
+}
+
+export async function pushPluginOnce(
+  pluginKind: string,
+  pluginId: string,
+  deviceId: string,
+  pageId: number
+): Promise<void> {
+  return invoke("push_plugin_once", { pluginKind, pluginId, deviceId, pageId });
+}
+
+export async function createPluginLoopTask(input: PluginLoopTaskInput): Promise<PluginLoopTask> {
+  return invoke<PluginLoopTask>("create_plugin_loop_task", { input });
+}
+
+export async function updatePluginLoopTask(
+  taskId: number,
+  input: PluginLoopTaskInput
+): Promise<PluginLoopTask> {
+  return invoke<PluginLoopTask>("update_plugin_loop_task", { taskId, input });
+}
+
+export async function deletePluginLoopTask(taskId: number): Promise<void> {
+  return invoke("delete_plugin_loop_task", { taskId });
+}
+
+export async function startPluginLoopTask(taskId: number): Promise<PluginLoopTask> {
+  return invoke<PluginLoopTask>("start_plugin_loop_task", { taskId });
+}
+
+export async function stopPluginLoopTask(taskId: number): Promise<PluginLoopTask> {
+  return invoke<PluginLoopTask>("stop_plugin_loop_task", { taskId });
 }
 
 export async function listImageLoopTasks(): Promise<ImageLoopTask[]> {

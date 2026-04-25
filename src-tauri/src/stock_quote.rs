@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -12,16 +13,19 @@ pub struct StockQuote {
     pub valid: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct EastmoneyResponse {
     data: Option<EastmoneyData>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct EastmoneyData {
     diff: Vec<EastmoneyQuote>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct EastmoneyQuote {
     f2: serde_json::Value,
@@ -29,6 +33,20 @@ struct EastmoneyQuote {
     f4: serde_json::Value,
     f12: String,
     f14: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct EastmoneyStockResponse {
+    data: Option<EastmoneyStockData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EastmoneyStockData {
+    f43: serde_json::Value,
+    f57: String,
+    f58: String,
+    f169: serde_json::Value,
+    f170: serde_json::Value,
 }
 
 pub fn normalize_stock_code(code: &str) -> anyhow::Result<String> {
@@ -66,7 +84,10 @@ pub fn format_stock_push_text(
     let valid_quotes: Vec<&StockQuote> = quotes.iter().filter(|q| q.valid).collect();
 
     if valid_quotes.is_empty() {
-        return format!("更新时间：{}\n暂无有效股票数据", now.format("%Y-%m-%d %H:%M:%S"));
+        return format!(
+            "更新时间：{}\n暂无有效股票数据",
+            now.format("%Y-%m-%d %H:%M:%S")
+        );
     }
 
     let mut lines = vec![
@@ -111,7 +132,19 @@ fn number_field(value: &serde_json::Value, field: &str, code: &str) -> anyhow::R
     anyhow::bail!("股票 {code} 缺少有效的 {field} 字段")
 }
 
-pub fn parse_eastmoney_quotes(
+fn unavailable_stock_quote(code: &str, reason: Option<&str>) -> StockQuote {
+    StockQuote {
+        code: code.to_string(),
+        name: reason.unwrap_or("未知").to_string(),
+        price: 0.0,
+        change: 0.0,
+        change_percent: 0.0,
+        valid: false,
+    }
+}
+
+#[cfg(test)]
+fn parse_eastmoney_quotes(
     body: &str,
     requested_codes: &[String],
 ) -> anyhow::Result<Vec<StockQuote>> {
@@ -126,9 +159,7 @@ pub fn parse_eastmoney_quotes(
         let name = item.f14.trim();
 
         // 名称为空或价格为 "-" 标记为无效
-        let is_valid = !name.is_empty()
-            && item.f2.as_str() != Some("-")
-            && !item.f2.is_null();
+        let is_valid = !name.is_empty() && item.f2.as_str() != Some("-") && !item.f2.is_null();
 
         let price = if is_valid {
             number_field(&item.f2, "f2", &code)?
@@ -148,7 +179,11 @@ pub fn parse_eastmoney_quotes(
 
         let quote = StockQuote {
             code: code.clone(),
-            name: if name.is_empty() { "未知".to_string() } else { name.to_string() },
+            name: if name.is_empty() {
+                "未知".to_string()
+            } else {
+                name.to_string()
+            },
             price,
             change_percent,
             change,
@@ -182,20 +217,53 @@ pub fn parse_eastmoney_quotes(
         .collect())
 }
 
+pub fn parse_eastmoney_stock_quote(body: &str, requested_code: &str) -> anyhow::Result<StockQuote> {
+    let code = normalize_stock_code(requested_code)?;
+    let response: EastmoneyStockResponse = serde_json::from_str(body)?;
+    let Some(data) = response.data else {
+        return Ok(unavailable_stock_quote(&code, None));
+    };
+
+    let name = data.f58.trim();
+    let is_valid = data.f57 == code
+        && !name.is_empty()
+        && data.f43.as_str() != Some("-")
+        && !data.f43.is_null();
+
+    let price = if is_valid {
+        number_field(&data.f43, "f43", &code)?
+    } else {
+        0.0
+    };
+    let change = if is_valid {
+        number_field(&data.f169, "f169", &code)?
+    } else {
+        0.0
+    };
+    let change_percent = if is_valid {
+        number_field(&data.f170, "f170", &code)?
+    } else {
+        0.0
+    };
+
+    Ok(StockQuote {
+        code,
+        name: if name.is_empty() {
+            "未知".to_string()
+        } else {
+            name.to_string()
+        },
+        price,
+        change,
+        change_percent,
+        valid: is_valid,
+    })
+}
+
 pub async fn fetch_eastmoney_quotes(codes: &[String]) -> anyhow::Result<Vec<StockQuote>> {
     if codes.is_empty() {
         anyhow::bail!("股票列表为空");
     }
-
-    let secids = codes
-        .iter()
-        .map(|code| stock_code_to_secid(code))
-        .collect::<anyhow::Result<Vec<_>>>()?
-        .join(",");
-
-    let url = format!(
-        "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&fields=f12,f14,f2,f3,f4&secids={secids}"
-    );
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -203,18 +271,53 @@ pub async fn fetch_eastmoney_quotes(codes: &[String]) -> anyhow::Result<Vec<Stoc
         .user_agent("Mozilla/5.0")
         .build()?;
 
-    let response = client
-        .get(&url)
-        .header("Referer", "https://quote.eastmoney.com/")
-        .send()
-        .await?;
+    let mut quotes = Vec::with_capacity(codes.len());
+    for code in codes {
+        let Ok(normalized) = normalize_stock_code(code) else {
+            quotes.push(unavailable_stock_quote(code.trim(), Some("代码无效")));
+            continue;
+        };
+        let Ok(secid) = stock_code_to_secid(&normalized) else {
+            quotes.push(unavailable_stock_quote(&normalized, Some("代码无效")));
+            continue;
+        };
+        let url = format!(
+            "https://push2.eastmoney.com/api/qt/stock/get?fltt=2&invt=2&fields=f43,f57,f58,f169,f170&secid={secid}"
+        );
 
-    if !response.status().is_success() {
-        anyhow::bail!("东方财富 API 返回错误: {}", response.status());
+        let response = match client
+            .get(&url)
+            .header("Referer", "https://quote.eastmoney.com/")
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(_) => {
+                quotes.push(unavailable_stock_quote(&normalized, Some("获取失败")));
+                continue;
+            }
+        };
+
+        if !response.status().is_success() {
+            quotes.push(unavailable_stock_quote(&normalized, Some("获取失败")));
+            continue;
+        }
+
+        let body = match response.text().await {
+            Ok(body) => body,
+            Err(_) => {
+                quotes.push(unavailable_stock_quote(&normalized, Some("获取失败")));
+                continue;
+            }
+        };
+
+        match parse_eastmoney_stock_quote(&body, &normalized) {
+            Ok(quote) => quotes.push(quote),
+            Err(_) => quotes.push(unavailable_stock_quote(&normalized, Some("解析失败"))),
+        }
     }
 
-    let body = response.text().await?;
-    parse_eastmoney_quotes(&body, codes)
+    Ok(quotes)
 }
 
 #[cfg(test)]
@@ -323,8 +426,7 @@ mod tests {
         }"#;
 
         let quotes =
-            parse_eastmoney_quotes(body, &["000001".to_string(), "600519".to_string()])
-                .unwrap();
+            parse_eastmoney_quotes(body, &["000001".to_string(), "600519".to_string()]).unwrap();
 
         assert_eq!(quotes[0].code, "000001");
         assert_eq!(quotes[0].name, "平安银行");
@@ -347,11 +449,8 @@ mod tests {
             }
         }"#;
 
-        let quotes = parse_eastmoney_quotes(
-            body,
-            &["000001".to_string(), " 600519 ".to_string()],
-        )
-        .unwrap();
+        let quotes =
+            parse_eastmoney_quotes(body, &["000001".to_string(), " 600519 ".to_string()]).unwrap();
 
         assert_eq!(quotes[0].code, "000001");
         assert_eq!(quotes[0].name, "平安银行");
@@ -371,8 +470,8 @@ mod tests {
             }
         }"#;
 
-        let quotes = parse_eastmoney_quotes(body, &["600519".to_string(), "000001".to_string()])
-            .unwrap();
+        let quotes =
+            parse_eastmoney_quotes(body, &["600519".to_string(), "000001".to_string()]).unwrap();
 
         assert_eq!(quotes[0].code, "600519");
         assert!(quotes[0].valid);
@@ -393,8 +492,7 @@ mod tests {
             }
         }"#;
 
-        let quotes = parse_eastmoney_quotes(body, &["600001".to_string()])
-            .unwrap();
+        let quotes = parse_eastmoney_quotes(body, &["600001".to_string()]).unwrap();
 
         assert_eq!(quotes[0].code, "600001");
         assert_eq!(quotes[0].name, "邯郸钢铁");
@@ -402,5 +500,63 @@ mod tests {
         assert_eq!(quotes[0].price, 0.0);
         assert_eq!(quotes[0].change, 0.0);
         assert_eq!(quotes[0].change_percent, 0.0);
+    }
+
+    #[test]
+    fn parses_eastmoney_single_stock_response() {
+        let body = r#"{
+            "rc": 0,
+            "data": {
+                "f43": 1458.49,
+                "f57": "600519",
+                "f58": "贵州茅台",
+                "f169": 39.49,
+                "f170": 2.78
+            }
+        }"#;
+
+        let quote = parse_eastmoney_stock_quote(body, "600519").unwrap();
+
+        assert_eq!(quote.code, "600519");
+        assert_eq!(quote.name, "贵州茅台");
+        assert_eq!(quote.price, 1458.49);
+        assert_eq!(quote.change, 39.49);
+        assert_eq!(quote.change_percent, 2.78);
+        assert!(quote.valid);
+    }
+
+    #[test]
+    fn parses_eastmoney_single_stock_dash_values_as_invalid() {
+        let body = r#"{
+            "rc": 0,
+            "data": {
+                "f43": "-",
+                "f57": "600001",
+                "f58": "邯郸钢铁",
+                "f169": "-",
+                "f170": "-"
+            }
+        }"#;
+
+        let quote = parse_eastmoney_stock_quote(body, "600001").unwrap();
+
+        assert_eq!(quote.code, "600001");
+        assert_eq!(quote.name, "邯郸钢铁");
+        assert_eq!(quote.price, 0.0);
+        assert_eq!(quote.change, 0.0);
+        assert_eq!(quote.change_percent, 0.0);
+        assert!(!quote.valid);
+    }
+
+    #[test]
+    fn creates_invalid_quote_for_unavailable_stock_data() {
+        let quote = unavailable_stock_quote("600001", Some("连接失败"));
+
+        assert_eq!(quote.code, "600001");
+        assert_eq!(quote.name, "连接失败");
+        assert_eq!(quote.price, 0.0);
+        assert_eq!(quote.change, 0.0);
+        assert_eq!(quote.change_percent, 0.0);
+        assert!(!quote.valid);
     }
 }

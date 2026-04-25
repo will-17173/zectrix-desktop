@@ -85,6 +85,8 @@ vi.mock("../lib/tauri", () => ({
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
+    customPlugins: [],
+    pluginLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
     stockPushTask: null,
@@ -98,6 +100,15 @@ vi.mock("../lib/tauri", () => ({
   removeStockWatch: vi.fn(),
   pushStockQuotes: vi.fn(),
   pushText: vi.fn(),
+  saveCustomPlugin: vi.fn(),
+  deleteCustomPlugin: vi.fn(),
+  runPluginOnce: vi.fn(),
+  pushPluginOnce: vi.fn(),
+  createPluginLoopTask: vi.fn(),
+  updatePluginLoopTask: vi.fn(),
+  deletePluginLoopTask: vi.fn(),
+  startPluginLoopTask: vi.fn(),
+  stopPluginLoopTask: vi.fn(),
   saveImageTemplate: vi.fn(),
   pushImageTemplate: vi.fn(),
   addApiKey: vi.fn(),
@@ -118,6 +129,8 @@ beforeEach(() => {
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
+    customPlugins: [],
+    pluginLoopTasks: [],
     stockPushTask: null,
     lastSyncTime: null,
     pageCache: [],
@@ -160,6 +173,8 @@ test("runs manual sync and shows success feedback", async () => {
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
+    customPlugins: [],
+    pluginLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
     stockPushTask: null,
@@ -173,6 +188,8 @@ test("runs manual sync and shows success feedback", async () => {
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
+    customPlugins: [],
+    pluginLoopTasks: [],
     lastSyncTime: "2026-04-23T00:00:00Z",
     pageCache: [],
     stockPushTask: null,
@@ -202,6 +219,8 @@ test("shows sync failure feedback when manual sync throws", async () => {
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
+    customPlugins: [],
+    pluginLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
     stockPushTask: null,
@@ -253,6 +272,30 @@ test("renders settings in the sidebar footer group", async () => {
   expect(within(footerNav).getByRole("link", { name: "设置" })).toBeInTheDocument();
 });
 
+test("renders plugin market in the sidebar", async () => {
+  render(
+    <MemoryRouter initialEntries={["/"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("插件市场")).toBeInTheDocument();
+});
+
+test("renders the plugin market route from the sidebar", async () => {
+  render(
+    <MemoryRouter>
+      <App />
+    </MemoryRouter>,
+  );
+
+  const pluginLink = await screen.findByRole("link", { name: "插件市场" });
+  await userEvent.click(pluginLink);
+
+  expect(await screen.findByText("暂无内置插件")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "保存插件" })).toBeInTheDocument();
+});
+
 test("renders the stock push route from the sidebar", async () => {
   render(
     <MemoryRouter>
@@ -276,6 +319,8 @@ test("renders the redesigned toolbar title, sync action, and compact status badg
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
+    customPlugins: [],
+    pluginLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
     stockPushTask: null,

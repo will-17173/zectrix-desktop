@@ -190,6 +190,17 @@ pub struct CustomPluginInput {
     pub code: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRunResult {
+    pub output_type: String,
+    pub title: Option<String>,
+    pub text: Option<String>,
+    pub image_data_url: Option<String>,
+    pub preview_png_base64: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginLoopTaskRecord {

@@ -10,20 +10,27 @@ import { SketchPage } from "../features/sketch/sketch-page";
 import { StockPushPage } from "../features/stocks/stock-push-page";
 import { TextTemplatesPage } from "../features/templates/text-templates-page";
 import { PageManagerPage } from "../features/page-manager/page-manager-page";
+import { PluginMarketPage } from "../features/plugins/plugin-market-page";
 import { TodoListPage } from "../features/todos/todo-list-page";
 import {
   addStockWatch,
   addDeviceCache,
   addApiKey,
+  createPluginLoopTask,
   removeApiKey,
   createLocalTodo,
   deleteLocalTodo,
+  deleteCustomPlugin,
   deleteImageTemplate,
+  deletePluginLoopTask,
   getImageThumbnail,
+  runPluginOnce,
   loadBootstrapState,
+  pushPluginOnce,
   pushFreeLayoutText,
   pushImageTemplate,
   pushSketch,
+  saveCustomPlugin,
   pushStockQuotes,
   pushText,
   pushTodoToDevice,
@@ -31,7 +38,10 @@ import {
   removeDeviceCache,
   saveImageTemplate,
   syncAll,
+  startPluginLoopTask,
+  stopPluginLoopTask,
   toggleTodoStatus,
+  updatePluginLoopTask,
   updateLocalTodo,
   createImageLoopTask,
   updateImageLoopTask,
@@ -57,6 +67,8 @@ const emptyState: BootstrapState = {
   textTemplates: [],
   imageTemplates: [],
   imageLoopTasks: [],
+  customPlugins: [],
+  pluginLoopTasks: [],
   stockWatchlist: [],
   stockPushTask: null,
   lastSyncTime: null,
@@ -71,6 +83,7 @@ const sectionTitles: Record<string, string> = {
   "/stock-push": "股票推送",
   "/text-push": "文本推送",
   "/page-manager": "页面管理",
+  "/plugins": "插件市场",
   "/settings": "设置",
 };
 
@@ -136,6 +149,54 @@ export default function App() {
   const hasApiKey = state.apiKeys.length > 0;
 
   function renderContent() {
+    if (path === "/plugins") {
+      return (
+        <PluginMarketPage
+          devices={state.devices}
+          customPlugins={state.customPlugins}
+          pluginLoopTasks={state.pluginLoopTasks}
+          onSavePlugin={async (input) => {
+            const saved = await saveCustomPlugin(input);
+            reload();
+            return saved;
+          }}
+          onDeletePlugin={async (pluginId) => {
+            await deleteCustomPlugin(pluginId);
+            reload();
+          }}
+          onRunPlugin={(pluginKind, pluginId) =>
+            runPluginOnce(pluginKind, pluginId)
+          }
+          onPushPlugin={(pluginKind, pluginId, deviceId, pageId) =>
+            pushPluginOnce(pluginKind, pluginId, deviceId, pageId)
+          }
+          onCreateLoopTask={async (input) => {
+            const task = await createPluginLoopTask(input);
+            reload();
+            return task;
+          }}
+          onUpdateLoopTask={async (taskId, input) => {
+            const task = await updatePluginLoopTask(taskId, input);
+            reload();
+            return task;
+          }}
+          onDeleteLoopTask={async (taskId) => {
+            await deletePluginLoopTask(taskId);
+            reload();
+          }}
+          onStartLoopTask={async (taskId) => {
+            const task = await startPluginLoopTask(taskId);
+            reload();
+            return task;
+          }}
+          onStopLoopTask={async (taskId) => {
+            const task = await stopPluginLoopTask(taskId);
+            reload();
+            return task;
+          }}
+        />
+      );
+    }
     if (path === "/settings") {
       return (
         <SettingsPage

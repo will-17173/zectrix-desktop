@@ -1,6 +1,10 @@
 mod api;
 mod commands;
 mod models;
+pub mod plugin_output;
+pub mod plugin_runtime;
+pub mod plugin_tasks;
+pub mod text_image;
 mod state;
 mod stock_quote;
 mod storage;
@@ -59,6 +63,17 @@ pub fn run() {
             commands::stocks::create_stock_push_task,
             commands::stocks::start_stock_push_task,
             commands::stocks::stop_stock_push_task,
+            commands::plugins::list_custom_plugins,
+            commands::plugins::save_custom_plugin,
+            commands::plugins::delete_custom_plugin,
+            commands::plugins::run_plugin_once,
+            commands::plugins::push_plugin_once,
+            commands::plugins::list_plugin_loop_tasks,
+            commands::plugins::create_plugin_loop_task,
+            commands::plugins::update_plugin_loop_task,
+            commands::plugins::delete_plugin_loop_task,
+            commands::plugins::start_plugin_loop_task,
+            commands::plugins::stop_plugin_loop_task,
             commands::updater::check_for_update,
             commands::updater::get_current_version,
             commands::image_loop::scan_image_folder,

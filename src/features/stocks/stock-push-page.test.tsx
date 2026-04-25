@@ -123,6 +123,74 @@ test("renders stock controls and existing watchlist", () => {
   expect(screen.getByRole("button", { name: "单次推送" })).toBeInTheDocument();
 });
 
+test("does not gray a stock before quote data is available", () => {
+  render(
+    <StockPushPage
+      devices={devices}
+      watchlist={watchlist}
+      quotes={[]}
+      pushTask={null}
+      onAddStock={vi.fn()}
+      onRemoveStock={vi.fn()}
+      onPushStocks={vi.fn()}
+      onFetchQuotes={vi.fn().mockResolvedValue([])}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText("600519").closest("li")).not.toHaveClass("text-gray-400");
+});
+
+test("grays a stock only when quote data marks it invalid", () => {
+  render(
+    <StockPushPage
+      devices={devices}
+      watchlist={watchlist}
+      quotes={[
+        { code: "600519", name: "未知", price: 0, change: 0, changePercent: 0, valid: false },
+      ]}
+      pushTask={null}
+      onAddStock={vi.fn()}
+      onRemoveStock={vi.fn()}
+      onPushStocks={vi.fn()}
+      onFetchQuotes={vi.fn().mockResolvedValue([])}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText("600519").closest("li")).toHaveClass("text-gray-400");
+});
+
+test("does not show a toast when quote refresh fails", async () => {
+  render(
+    <>
+      <Toaster position="top-center" />
+      <StockPushPage
+        devices={devices}
+        watchlist={watchlist}
+        quotes={[]}
+        pushTask={null}
+        onAddStock={vi.fn()}
+        onRemoveStock={vi.fn()}
+        onPushStocks={vi.fn()}
+        onFetchQuotes={vi.fn().mockRejectedValue(new Error("quote offline"))}
+        onCreateTask={vi.fn()}
+        onStartTask={vi.fn()}
+        onStopTask={vi.fn()}
+      />
+    </>,
+  );
+
+  await waitFor(() => {
+    expect(toastHarness.toast.error).not.toHaveBeenCalled();
+  });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
 test("rejects invalid stock code before calling add", async () => {
   const user = userEvent.setup();
   const onAddStock = vi.fn();
