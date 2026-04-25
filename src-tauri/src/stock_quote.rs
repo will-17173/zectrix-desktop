@@ -197,16 +197,23 @@ pub async fn fetch_eastmoney_quotes(codes: &[String]) -> anyhow::Result<Vec<Stoc
         "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&fields=f12,f14,f2,f3,f4&secids={secids}"
     );
 
-    let body = reqwest::Client::new()
-        .get(url)
-        .header("User-Agent", "Mozilla/5.0")
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .user_agent("Mozilla/5.0")
+        .build()?;
+
+    let response = client
+        .get(&url)
         .header("Referer", "https://quote.eastmoney.com/")
         .send()
-        .await?
-        .error_for_status()?
-        .text()
         .await?;
 
+    if !response.status().is_success() {
+        anyhow::bail!("东方财富 API 返回错误: {}", response.status());
+    }
+
+    let body = response.text().await?;
     parse_eastmoney_quotes(&body, codes)
 }
 

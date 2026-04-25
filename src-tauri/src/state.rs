@@ -2887,6 +2887,58 @@ mod tests {
         assert!(state.list_custom_plugins().unwrap().is_empty());
     }
 
+    #[test]
+    fn plugin_loop_task_crud_persists_to_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        let created = state
+            .create_plugin_loop_task(crate::models::PluginLoopTaskInput {
+                plugin_kind: "custom".into(),
+                plugin_id: "1".into(),
+                name: "天气循环".into(),
+                device_id: "AA:BB:CC:DD:EE:FF".into(),
+                page_id: 2,
+                interval_seconds: 60,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
+
+        assert!(created.id > 0);
+        assert_eq!(created.status, "idle");
+        assert_eq!(created.page_id, 2);
+
+        let updated = state
+            .update_plugin_loop_task(
+                created.id,
+                crate::models::PluginLoopTaskInput {
+                    plugin_kind: "custom".into(),
+                    plugin_id: "1".into(),
+                    name: "天气循环 v2".into(),
+                    device_id: "AA:BB:CC:DD:EE:FF".into(),
+                    page_id: 3,
+                    interval_seconds: 120,
+                    duration_type: "for_duration".into(),
+                    end_time: None,
+                    duration_minutes: Some(30),
+                },
+            )
+            .unwrap();
+
+        assert_eq!(updated.name, "天气循环 v2");
+        assert_eq!(updated.page_id, 3);
+        assert_eq!(updated.duration_minutes, Some(30));
+
+        let listed = state.list_plugin_loop_tasks().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, created.id);
+
+        state.delete_plugin_loop_task(created.id).unwrap();
+        assert!(state.list_plugin_loop_tasks().unwrap().is_empty());
+    }
+
     #[tokio::test]
     async fn start_image_loop_task_sets_running_status() {
         let dir = tempfile::tempdir().unwrap();
