@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
-import type { StockWatchRecord } from "../../lib/tauri";
+import type { StockWatchRecord, StockPushTaskRecord } from "../../lib/tauri";
 
 type Device = { deviceId: string; alias: string; board: string };
 
@@ -19,12 +19,23 @@ const PAGE_OPTIONS = [
   { value: 5, label: "第 5 页" },
 ];
 
+const INTERVAL_OPTIONS = [
+  { value: 30, label: "30 秒" },
+  { value: 60, label: "1 分钟" },
+  { value: 300, label: "5 分钟" },
+  { value: 600, label: "10 分钟" },
+];
+
 type Props = {
   devices: Device[];
   watchlist: StockWatchRecord[];
+  pushTask: StockPushTaskRecord | null;
   onAddStock: (code: string) => Promise<StockWatchRecord>;
   onRemoveStock: (code: string) => Promise<void>;
   onPushStocks: (deviceId: string, pageId: number) => Promise<void>;
+  onCreateTask: (deviceId: string, pageId: number, intervalSeconds: number) => Promise<StockPushTaskRecord>;
+  onStartTask: () => Promise<StockPushTaskRecord>;
+  onStopTask: () => Promise<StockPushTaskRecord>;
 };
 
 function validateCode(code: string): string | null {
@@ -39,23 +50,40 @@ function validateCode(code: string): string | null {
   return null;
 }
 
+function formatInterval(seconds: number): string {
+  return INTERVAL_OPTIONS.find((opt) => opt.value === seconds)?.label ?? `${seconds} 秒`;
+}
+
 export function StockPushPage({
   devices,
   watchlist,
+  pushTask,
   onAddStock,
   onRemoveStock,
   onPushStocks,
+  onCreateTask,
+  onStartTask,
+  onStopTask,
 }: Props) {
   const [stocks, setStocks] = useState(watchlist);
   const [code, setCode] = useState("");
-  const [pageId, setPageId] = useState(1);
+  const [pageId, setPageId] = useState(pushTask?.pageId ?? 1);
+  const [intervalSeconds, setIntervalSeconds] = useState(pushTask?.intervalSeconds ?? 60);
   const [isAdding, setIsAdding] = useState(false);
   const [removingCodes, setRemovingCodes] = useState<string[]>([]);
   const [isPushing, setIsPushing] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
 
   useEffect(() => {
     setStocks(watchlist);
   }, [watchlist]);
+
+  useEffect(() => {
+    if (pushTask) {
+      setPageId(pushTask.pageId);
+      setIntervalSeconds(pushTask.intervalSeconds);
+    }
+  }, [pushTask]);
 
   async function handleAdd() {
     const normalizedCode = code.trim();
@@ -123,6 +151,48 @@ export function StockPushPage({
     }
   }
 
+  async function handleStartLoop() {
+    const deviceId = devices[0]?.deviceId;
+
+    if (!deviceId) {
+      toast.error("没有可用设备");
+      return;
+    }
+
+    if (stocks.length === 0) {
+      toast.error("请先添加股票代码");
+      return;
+    }
+
+    setIsLooping(true);
+    try {
+      // Create task if not exists or update settings
+      if (!pushTask || pushTask.pageId !== pageId || pushTask.intervalSeconds !== intervalSeconds) {
+        await onCreateTask(deviceId, pageId, intervalSeconds);
+      }
+      await onStartTask();
+      toast.success("循环推送已启动");
+    } catch (error) {
+      toast.error(`启动失败: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsLooping(false);
+    }
+  }
+
+  async function handleStopLoop() {
+    setIsLooping(true);
+    try {
+      await onStopTask();
+      toast.success("循环推送已停止");
+    } catch (error) {
+      toast.error(`停止失败: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsLooping(false);
+    }
+  }
+
+  const isRunning = pushTask?.status === "running";
+
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -186,7 +256,7 @@ export function StockPushPage({
           <label id="stock-page-label" htmlFor="stock-page-trigger" className="block text-sm font-medium">
             目标页面
           </label>
-          <Select value={String(pageId)} onValueChange={(value) => setPageId(Number(value))}>
+          <Select value={String(pageId)} onValueChange={(value) => setPageId(Number(value))} disabled={isRunning}>
             <SelectTrigger
               id="stock-page-trigger"
               aria-labelledby="stock-page-label stock-page-trigger"
@@ -203,15 +273,79 @@ export function StockPushPage({
           </Select>
         </div>
 
-        <button
-          type="button"
-          onClick={handlePush}
-          disabled={isPushing}
-          className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
-        >
-          {isPushing ? "推送中..." : "推送"}
-        </button>
+        <div className="space-y-2">
+          <label id="stock-interval-label" htmlFor="stock-interval-trigger" className="block text-sm font-medium">
+            推送间隔
+          </label>
+          <Select value={String(intervalSeconds)} onValueChange={(value) => setIntervalSeconds(Number(value))} disabled={isRunning}>
+            <SelectTrigger
+              id="stock-interval-trigger"
+              aria-labelledby="stock-interval-label stock-interval-trigger"
+            >
+              <SelectValue placeholder="选择间隔" />
+            </SelectTrigger>
+            <SelectContent>
+              {INTERVAL_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={String(option.value)}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handlePush}
+            disabled={isPushing || isRunning}
+            className="flex-1 rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+          >
+            {isPushing ? "推送中..." : "单次推送"}
+          </button>
+          {!isRunning ? (
+            <button
+              type="button"
+              onClick={handleStartLoop}
+              disabled={isLooping}
+              className="flex-1 rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:cursor-not-allowed disabled:bg-green-300"
+            >
+              {isLooping ? "启动中..." : "开始循环"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleStopLoop}
+              disabled={isLooping}
+              className="flex-1 rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:bg-red-300"
+            >
+              {isLooping ? "停止中..." : "停止循环"}
+            </button>
+          )}
+        </div>
       </div>
+
+      {pushTask && (
+        <div className="max-w-md rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
+          <div className="text-sm font-medium mb-2">任务状态</div>
+          <div className="text-sm text-gray-600 space-y-1">
+            <p>
+              状态: <span className={isRunning ? "text-green-600 font-medium" : "text-gray-500"}>{isRunning ? "运行中" : "已停止"}</span>
+            </p>
+            <p>
+              设备: {devices.find((d) => d.deviceId === pushTask.deviceId)?.alias ?? pushTask.deviceId}
+            </p>
+            <p>页面: 第 {pushTask.pageId} 页</p>
+            <p>间隔: {formatInterval(pushTask.intervalSeconds)}</p>
+            {pushTask.lastPushAt && (
+              <p>上次推送: {new Date(pushTask.lastPushAt).toLocaleString()}</p>
+            )}
+            {pushTask.errorMessage && (
+              <p className="text-red-600">错误: {pushTask.errorMessage}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="text-sm text-gray-500">
         {devices.length > 0

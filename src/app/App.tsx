@@ -39,6 +39,10 @@ import {
   startImageLoopTask,
   stopImageLoopTask,
   listImageLoopTasks,
+  getStockPushTask,
+  createStockPushTask,
+  startStockPushTask,
+  stopStockPushTask,
   type BootstrapState,
   type ImageLoopTaskInput,
 } from "../lib/tauri";
@@ -52,6 +56,7 @@ const emptyState: BootstrapState = {
   imageTemplates: [],
   imageLoopTasks: [],
   stockWatchlist: [],
+  stockPushTask: null,
   lastSyncTime: null,
   pageCache: [],
 };
@@ -91,6 +96,21 @@ export default function App() {
     const tasks = await listImageLoopTasks();
     setState((prev) => ({ ...prev, imageLoopTasks: tasks }));
   }
+
+  async function refreshStockPushTask() {
+    const task = await getStockPushTask();
+    setState((prev) => ({ ...prev, stockPushTask: task }));
+  }
+
+  // Poll stock push task status when running
+  useEffect(() => {
+    if (state.stockPushTask?.status !== "running" || location.pathname !== "/stock-push") {
+      return;
+    }
+
+    const interval = setInterval(refreshStockPushTask, 5000);
+    return () => clearInterval(interval);
+  }, [state.stockPushTask?.status, location.pathname]);
 
   async function handleSync() {
     setSyncState("syncing");
@@ -216,6 +236,7 @@ export default function App() {
         <StockPushPage
           devices={state.devices}
           watchlist={state.stockWatchlist}
+          pushTask={state.stockPushTask ?? null}
           onAddStock={async (code) => {
             const record = await addStockWatch(code);
             setState((prev) => ({ ...prev, stockWatchlist: [...prev.stockWatchlist, record] }));
@@ -229,6 +250,21 @@ export default function App() {
             }));
           }}
           onPushStocks={pushStockQuotes}
+          onCreateTask={async (deviceId, pageId, intervalSeconds) => {
+            const task = await createStockPushTask(deviceId, pageId, intervalSeconds);
+            setState((prev) => ({ ...prev, stockPushTask: task }));
+            return task;
+          }}
+          onStartTask={async () => {
+            const task = await startStockPushTask();
+            setState((prev) => ({ ...prev, stockPushTask: task }));
+            return task;
+          }}
+          onStopTask={async () => {
+            const task = await stopStockPushTask();
+            setState((prev) => ({ ...prev, stockPushTask: task }));
+            return task;
+          }}
         />
       );
     }

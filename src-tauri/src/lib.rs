@@ -14,10 +14,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(state::AppState::new().expect("app state"))
         .setup(|app| {
-            // Stop all running image loop tasks on startup
+            // Stop all running tasks on startup
             let state = app.state::<state::AppState>();
             if let Err(e) = state.stop_all_image_loop_tasks_on_boot() {
                 eprintln!("[startup] failed to stop image loop tasks: {e}");
+            }
+            if let Err(e) = state.stop_stock_push_task_on_boot() {
+                eprintln!("[startup] failed to stop stock push task: {e}");
             }
             Ok(())
         })
@@ -51,6 +54,10 @@ pub fn run() {
             commands::stocks::add_stock_watch,
             commands::stocks::remove_stock_watch,
             commands::stocks::push_stock_quotes,
+            commands::stocks::get_stock_push_task,
+            commands::stocks::create_stock_push_task,
+            commands::stocks::start_stock_push_task,
+            commands::stocks::stop_stock_push_task,
             commands::updater::check_for_update,
             commands::updater::get_current_version,
             commands::image_loop::scan_image_folder,

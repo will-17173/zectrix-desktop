@@ -1,7 +1,7 @@
 use crate::models::{
     ApiKeyRecord, AppConfig, BootstrapState, CropRect, DeviceRecord, ImageEditInput,
-    ImageTemplateRecord, ImageTemplateSaveInput, PageCacheRecord, StockWatchRecord,
-    TextTemplateInput, TextTemplateRecord, TodoRecord, TodoUpsertInput,
+    ImageTemplateRecord, ImageTemplateSaveInput, PageCacheRecord, StockPushTaskRecord,
+    StockWatchRecord, TextTemplateInput, TextTemplateRecord, TodoRecord, TodoUpsertInput,
 };
 use crate::storage::{load_json, save_json};
 use image::GenericImageView;
@@ -107,6 +107,55 @@ async fn execute_image_loop_push(data_dir: PathBuf, task_id: i64) -> anyhow::Res
     let updated = tasks[task_idx].clone();
     crate::storage::save_json(&data_dir.join("image_loop_tasks.json"), &tasks)?;
     Ok(updated)
+}
+
+/// Execute a single stock push for a running loop task
+async fn execute_stock_push(data_dir: PathBuf, task_id: i64) -> anyhow::Result<()> {
+    let task_opt: Option<StockPushTaskRecord> = load_json(&data_dir.join("stock_push_task.json"))?;
+    let task = task_opt
+        .ok_or_else(|| anyhow::anyhow!("股票推送任务 {task_id} 未找到"))?;
+
+    if task.status != "running" {
+        return Ok(()); // Task stopped, exit gracefully
+    }
+
+    // Get device info
+    let devices: Vec<DeviceRecord> = load_json(&data_dir.join("devices.json"))?;
+    let device = devices
+        .iter()
+        .find(|d| d.device_id.eq_ignore_ascii_case(&task.device_id))
+        .ok_or_else(|| anyhow::anyhow!("设备 {} 未找到", task.device_id))?;
+
+    // Get API key
+    let api_key: String = {
+        let api_keys: Vec<ApiKeyRecord> = load_json(&data_dir.join("api_keys.json"))?;
+        api_keys
+            .iter()
+            .find(|k| k.id == device.api_key_id)
+            .map(|k| k.key.clone())
+            .ok_or_else(|| anyhow::anyhow!("API Key ID {} 未找到", device.api_key_id))?
+    };
+
+    // Load watchlist and fetch quotes
+    let watchlist: Vec<StockWatchRecord> = load_json(&data_dir.join("stock_watchlist.json"))?;
+    if watchlist.is_empty() {
+        return Ok(()); // No stocks, skip push
+    }
+
+    let codes = watchlist.iter().map(|r| r.code.clone()).collect::<Vec<_>>();
+    let quotes = crate::stock_quote::fetch_eastmoney_quotes(&codes).await?;
+    let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
+
+    // Push text
+    crate::api::client::push_text(&api_key, &task.device_id, &text, Some(20), Some(task.page_id)).await?;
+
+    // Update last_push_at
+    let mut task = task;
+    task.last_push_at = Some(chrono::Utc::now().to_rfc3339());
+    task.updated_at = chrono::Utc::now().to_rfc3339();
+    save_json(&data_dir.join("stock_push_task.json"), &task)?;
+
+    Ok(())
 }
 
 /// Standalone image folder scanner
@@ -498,6 +547,7 @@ impl AppState {
         let page_cache = self.load_page_cache()?;
         let image_loop_tasks = self.load_image_loop_tasks()?;
         let stock_watchlist = self.load_stock_watchlist()?;
+        let stock_push_task = self.load_stock_push_task()?;
 
         Ok(BootstrapState {
             api_keys,
@@ -509,6 +559,7 @@ impl AppState {
             page_cache,
             image_loop_tasks,
             stock_watchlist,
+            stock_push_task,
         })
     }
 
@@ -1027,6 +1078,148 @@ impl AppState {
         let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
 
         self.push_text(&text, Some(20), device_id, Some(page_id)).await
+    }
+
+    // ==================== Stock Push Task Methods ====================
+
+    fn load_stock_push_task(&self) -> anyhow::Result<Option<StockPushTaskRecord>> {
+        let path = self.data_dir.join("stock_push_task.json");
+        if !path.exists() {
+            return Ok(None);
+        }
+        load_json(&path)
+    }
+
+    fn save_stock_push_task(&self, task: &StockPushTaskRecord) -> anyhow::Result<()> {
+        let path = self.data_dir.join("stock_push_task.json");
+        save_json(&path, task)
+    }
+
+    pub fn get_stock_push_task(&self) -> anyhow::Result<Option<StockPushTaskRecord>> {
+        self.load_stock_push_task()
+    }
+
+    pub fn create_stock_push_task(
+        &self,
+        device_id: &str,
+        page_id: u32,
+        interval_seconds: u32,
+    ) -> anyhow::Result<StockPushTaskRecord> {
+        // Validate interval
+        if ![30, 60, 300, 600].contains(&interval_seconds) {
+            anyhow::bail!("间隔时间必须是 30、60、300 或 600 秒");
+        }
+
+        // Check if task already exists
+        if let Some(existing) = self.load_stock_push_task()? {
+            if existing.status == "running" {
+                anyhow::bail!("已有正在运行的股票推送任务，请先停止");
+            }
+        }
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let task = StockPushTaskRecord {
+            id: 1,
+            device_id: device_id.to_string(),
+            page_id,
+            interval_seconds,
+            status: "stopped".to_string(),
+            error_message: None,
+            started_at: None,
+            last_push_at: None,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+
+        self.save_stock_push_task(&task)?;
+        Ok(task)
+    }
+
+    pub fn start_stock_push_task(&self) -> anyhow::Result<StockPushTaskRecord> {
+        let mut task = self
+            .load_stock_push_task()?
+            .ok_or_else(|| anyhow::anyhow!("请先创建股票推送任务"))?;
+
+        // Check if watchlist has stocks
+        let watchlist = self.load_stock_watchlist()?;
+        if watchlist.is_empty() {
+            anyhow::bail!("股票列表为空，请先添加股票代码");
+        }
+
+        if task.status == "running" {
+            return Ok(task);
+        }
+
+        task.status = "running".to_string();
+        task.error_message = None;
+        task.started_at = Some(chrono::Utc::now().to_rfc3339());
+        task.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let updated = task.clone();
+        self.save_stock_push_task(&task)?;
+
+        // Spawn background task
+        let data_dir = self.data_dir.clone();
+        let task_id = task.id;
+        let interval_seconds = task.interval_seconds;
+
+        tauri::async_runtime::spawn(async move {
+            // First push immediately
+            if let Err(e) = execute_stock_push(data_dir.clone(), task_id).await {
+                eprintln!("[stock-push] 第一次推送失败: {}", e);
+                return;
+            }
+
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(interval_seconds as u64)).await;
+
+                // Check if task is still running
+                let still_running = {
+                    let task_opt: Option<StockPushTaskRecord> = match load_json(
+                        &data_dir.join("stock_push_task.json")
+                    ) {
+                        Ok(t) => t,
+                        Err(_) => break,
+                    };
+                    task_opt.map(|t| t.status == "running").unwrap_or(false)
+                };
+
+                if !still_running {
+                    break;
+                }
+
+                if let Err(e) = execute_stock_push(data_dir.clone(), task_id).await {
+                    eprintln!("[stock-push] 推送失败: {}", e);
+                }
+            }
+        });
+
+        Ok(updated)
+    }
+
+    pub fn stop_stock_push_task(&self) -> anyhow::Result<StockPushTaskRecord> {
+        let mut task = self
+            .load_stock_push_task()?
+            .ok_or_else(|| anyhow::anyhow!("没有股票推送任务"))?;
+
+        task.status = "stopped".to_string();
+        task.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let updated = task.clone();
+        self.save_stock_push_task(&task)?;
+        Ok(updated)
+    }
+
+    /// Stop running stock push task on app startup
+    pub fn stop_stock_push_task_on_boot(&self) -> anyhow::Result<()> {
+        if let Some(mut task) = self.load_stock_push_task()? {
+            if task.status == "running" {
+                task.status = "stopped".to_string();
+                task.updated_at = chrono::Utc::now().to_rfc3339();
+                self.save_stock_push_task(&task)?;
+            }
+        }
+        Ok(())
     }
 
     pub async fn push_structured_text(

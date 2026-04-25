@@ -64,9 +64,23 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Toaster } from "../../components/ui/toast";
 import { StockPushPage } from "./stock-push-page";
+import type { StockPushTaskRecord } from "../../lib/tauri";
 
 const devices = [{ deviceId: "AA:BB", alias: "桌面屏", board: "note" }];
 const watchlist = [{ code: "600519", createdAt: "2026-04-25T10:30:00Z" }];
+
+const defaultPushTask: StockPushTaskRecord = {
+  id: 1,
+  deviceId: "AA:BB",
+  pageId: 1,
+  intervalSeconds: 60,
+  status: "stopped",
+  errorMessage: undefined,
+  startedAt: undefined,
+  lastPushAt: undefined,
+  createdAt: "2026-04-25T10:00:00Z",
+  updatedAt: "2026-04-25T10:00:00Z",
+};
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -88,16 +102,20 @@ test("renders stock controls and existing watchlist", () => {
     <StockPushPage
       devices={devices}
       watchlist={watchlist}
+      pushTask={null}
       onAddStock={vi.fn()}
       onRemoveStock={vi.fn()}
       onPushStocks={vi.fn()}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
     />,
   );
 
   expect(screen.getByRole("heading", { name: "股票推送" })).toBeInTheDocument();
   expect(screen.getByLabelText("股票代码")).toBeInTheDocument();
   expect(screen.getByText("600519")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "推送" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "单次推送" })).toBeInTheDocument();
 });
 
 test("rejects invalid stock code before calling add", async () => {
@@ -110,9 +128,13 @@ test("rejects invalid stock code before calling add", async () => {
       <StockPushPage
         devices={devices}
         watchlist={[]}
+        pushTask={null}
         onAddStock={onAddStock}
         onRemoveStock={vi.fn()}
         onPushStocks={vi.fn()}
+        onCreateTask={vi.fn()}
+        onStartTask={vi.fn()}
+        onStopTask={vi.fn()}
       />
     </>,
   );
@@ -133,9 +155,13 @@ test("adds and removes stocks", async () => {
     <StockPushPage
       devices={devices}
       watchlist={watchlist}
+      pushTask={null}
       onAddStock={onAddStock}
       onRemoveStock={onRemoveStock}
       onPushStocks={vi.fn()}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
     />,
   );
 
@@ -170,9 +196,13 @@ test("keeps both clicked delete buttons disabled during concurrent removals unti
         { code: "600519", createdAt: "2026-04-25T10:30:00Z" },
         { code: "000001", createdAt: "2026-04-25T10:31:00Z" },
       ]}
+      pushTask={null}
       onAddStock={vi.fn()}
       onRemoveStock={onRemoveStock}
       onPushStocks={vi.fn()}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
     />,
   );
 
@@ -208,15 +238,135 @@ test("pushes stocks to first device and selected page", async () => {
     <StockPushPage
       devices={devices}
       watchlist={watchlist}
+      pushTask={null}
       onAddStock={vi.fn()}
       onRemoveStock={vi.fn()}
       onPushStocks={onPushStocks}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
     />,
   );
 
-  await user.click(screen.getByRole("combobox"));
+  await user.click(screen.getByRole("combobox", { name: "目标页面" }));
   await user.click(await screen.findByRole("option", { name: "第 3 页" }));
-  await user.click(screen.getByRole("button", { name: "推送" }));
+  await user.click(screen.getByRole("button", { name: "单次推送" }));
 
   expect(onPushStocks).toHaveBeenCalledWith("AA:BB", 3);
+});
+
+test("shows start loop button when task is not running", () => {
+  render(
+    <StockPushPage
+      devices={devices}
+      watchlist={watchlist}
+      pushTask={defaultPushTask}
+      onAddStock={vi.fn()}
+      onRemoveStock={vi.fn()}
+      onPushStocks={vi.fn()}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole("button", { name: "开始循环" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "停止循环" })).not.toBeInTheDocument();
+});
+
+test("shows stop loop button when task is running", () => {
+  const runningTask: StockPushTaskRecord = {
+    ...defaultPushTask,
+    status: "running",
+    startedAt: "2026-04-25T11:00:00Z",
+    lastPushAt: "2026-04-25T11:00:00Z",
+  };
+
+  render(
+    <StockPushPage
+      devices={devices}
+      watchlist={watchlist}
+      pushTask={runningTask}
+      onAddStock={vi.fn()}
+      onRemoveStock={vi.fn()}
+      onPushStocks={vi.fn()}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole("button", { name: "停止循环" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "开始循环" })).not.toBeInTheDocument();
+  expect(screen.getByText("运行中")).toBeInTheDocument();
+});
+
+test("starts loop task with correct parameters", async () => {
+  const user = userEvent.setup();
+  const onCreateTask = vi.fn().mockResolvedValue(defaultPushTask);
+  const onStartTask = vi.fn().mockResolvedValue({ ...defaultPushTask, status: "running" });
+
+  render(
+    <>
+      <Toaster position="top-center" />
+      <StockPushPage
+        devices={devices}
+        watchlist={watchlist}
+        pushTask={null}
+        onAddStock={vi.fn()}
+        onRemoveStock={vi.fn()}
+        onPushStocks={vi.fn()}
+        onCreateTask={onCreateTask}
+        onStartTask={onStartTask}
+        onStopTask={vi.fn()}
+      />
+    </>,
+  );
+
+  // Select interval
+  await user.click(screen.getByRole("combobox", { name: "推送间隔" }));
+  await user.click(await screen.findByRole("option", { name: "5 分钟" }));
+
+  // Select page
+  await user.click(screen.getByRole("combobox", { name: "目标页面" }));
+  await user.click(await screen.findByRole("option", { name: "第 3 页" }));
+
+  // Start loop
+  await user.click(screen.getByRole("button", { name: "开始循环" }));
+
+  expect(onCreateTask).toHaveBeenCalledWith("AA:BB", 3, 300);
+  expect(onStartTask).toHaveBeenCalled();
+  expect(await screen.findByText("循环推送已启动")).toBeInTheDocument();
+});
+
+test("stops loop task", async () => {
+  const user = userEvent.setup();
+  const onStopTask = vi.fn().mockResolvedValue(defaultPushTask);
+
+  const runningTask: StockPushTaskRecord = {
+    ...defaultPushTask,
+    status: "running",
+  };
+
+  render(
+    <>
+      <Toaster position="top-center" />
+      <StockPushPage
+        devices={devices}
+        watchlist={watchlist}
+        pushTask={runningTask}
+        onAddStock={vi.fn()}
+        onRemoveStock={vi.fn()}
+        onPushStocks={vi.fn()}
+        onCreateTask={vi.fn()}
+        onStartTask={vi.fn()}
+        onStopTask={onStopTask}
+      />
+    </>,
+  );
+
+  await user.click(screen.getByRole("button", { name: "停止循环" }));
+
+  expect(onStopTask).toHaveBeenCalled();
+  expect(await screen.findByText("循环推送已停止")).toBeInTheDocument();
 });

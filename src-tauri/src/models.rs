@@ -40,6 +40,8 @@ pub struct BootstrapState {
     pub image_loop_tasks: Vec<ImageLoopTaskRecord>,
     #[serde(default)]
     pub stock_watchlist: Vec<StockWatchRecord>,
+    #[serde(default)]
+    pub stock_push_task: Option<StockPushTaskRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,6 +172,21 @@ pub struct StockWatchRecord {
     pub code: String,
     #[serde(alias = "created_at", rename = "createdAt")]
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StockPushTaskRecord {
+    pub id: i64,
+    pub device_id: String,
+    pub page_id: u32,
+    pub interval_seconds: u32,
+    pub status: String,
+    pub error_message: Option<String>,
+    pub started_at: Option<String>,
+    pub last_push_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

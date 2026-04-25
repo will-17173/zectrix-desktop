@@ -49,6 +49,19 @@ export type StockWatchRecord = {
   createdAt: string;
 };
 
+export type StockPushTaskRecord = {
+  id: number;
+  deviceId: string;
+  pageId: number;
+  intervalSeconds: number;
+  status: "running" | "stopped";
+  errorMessage?: string;
+  startedAt?: string;
+  lastPushAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type BootstrapState = {
   apiKeys: ApiKeyRecord[];
   devices: DeviceRecord[];
@@ -59,6 +72,7 @@ export type BootstrapState = {
   pageCache: Array<PageCacheRecord>;
   imageLoopTasks: Array<ImageLoopTask>;
   stockWatchlist: Array<StockWatchRecord>;
+  stockPushTask: StockPushTaskRecord | null;
 };
 
 export async function loadBootstrapState(): Promise<BootstrapState> {
@@ -321,4 +335,24 @@ export async function removeStockWatch(code: string): Promise<void> {
 
 export async function pushStockQuotes(deviceId: string, pageId: number): Promise<void> {
   return invoke("push_stock_quotes", { deviceId, pageId });
+}
+
+export async function getStockPushTask(): Promise<StockPushTaskRecord | null> {
+  return invoke<StockPushTaskRecord | null>("get_stock_push_task");
+}
+
+export async function createStockPushTask(
+  deviceId: string,
+  pageId: number,
+  intervalSeconds: number
+): Promise<StockPushTaskRecord> {
+  return invoke<StockPushTaskRecord>("create_stock_push_task", { deviceId, pageId, intervalSeconds });
+}
+
+export async function startStockPushTask(): Promise<StockPushTaskRecord> {
+  return invoke<StockPushTaskRecord>("start_stock_push_task");
+}
+
+export async function stopStockPushTask(): Promise<StockPushTaskRecord> {
+  return invoke<StockPushTaskRecord>("stop_stock_push_task");
 }

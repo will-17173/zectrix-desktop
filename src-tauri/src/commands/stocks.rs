@@ -32,3 +32,36 @@ pub async fn push_stock_quotes(
         .await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn get_stock_push_task(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<Option<crate::models::StockPushTaskRecord>, String> {
+    state.get_stock_push_task().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn create_stock_push_task(
+    state: tauri::State<'_, crate::state::AppState>,
+    device_id: String,
+    page_id: u32,
+    interval_seconds: u32,
+) -> Result<crate::models::StockPushTaskRecord, String> {
+    state
+        .create_stock_push_task(&device_id, page_id, interval_seconds)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn start_stock_push_task(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<crate::models::StockPushTaskRecord, String> {
+    state.start_stock_push_task().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn stop_stock_push_task(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<crate::models::StockPushTaskRecord, String> {
+    state.stop_stock_push_task().map_err(|e| e.to_string())
+}

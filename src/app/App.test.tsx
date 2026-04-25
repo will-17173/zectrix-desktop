@@ -87,6 +87,7 @@ vi.mock("../lib/tauri", () => ({
     imageLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
+    stockPushTask: null,
   }),
   createLocalTodo: vi.fn(),
   toggleTodoStatus: vi.fn(),
@@ -117,6 +118,7 @@ beforeEach(() => {
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
+    stockPushTask: null,
     lastSyncTime: null,
     pageCache: [],
   });
@@ -160,6 +162,7 @@ test("runs manual sync and shows success feedback", async () => {
     imageLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
+    stockPushTask: null,
   });
 
   mockSyncAll.mockResolvedValue({
@@ -172,6 +175,7 @@ test("runs manual sync and shows success feedback", async () => {
     imageLoopTasks: [],
     lastSyncTime: "2026-04-23T00:00:00Z",
     pageCache: [],
+    stockPushTask: null,
   });
 
   render(
@@ -200,6 +204,7 @@ test("shows sync failure feedback when manual sync throws", async () => {
     imageLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
+    stockPushTask: null,
   });
 
   mockSyncAll.mockRejectedValueOnce(new Error("boom"));
@@ -273,6 +278,7 @@ test("renders the redesigned toolbar title, sync action, and compact status badg
     imageLoopTasks: [],
     lastSyncTime: null,
     pageCache: [],
+    stockPushTask: null,
   });
 
   render(
