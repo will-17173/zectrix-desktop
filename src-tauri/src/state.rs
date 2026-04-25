@@ -1,7 +1,7 @@
 use crate::models::{
     ApiKeyRecord, AppConfig, BootstrapState, CropRect, DeviceRecord, ImageEditInput,
-    ImageTemplateRecord, ImageTemplateSaveInput, PageCacheRecord, TextTemplateInput, TextTemplateRecord, TodoRecord,
-    TodoUpsertInput,
+    ImageTemplateRecord, ImageTemplateSaveInput, PageCacheRecord, StockWatchRecord,
+    TextTemplateInput, TextTemplateRecord, TodoRecord, TodoUpsertInput,
 };
 use crate::storage::{load_json, save_json};
 use image::GenericImageView;
@@ -496,8 +496,8 @@ impl AppState {
         let text_templates = load_json(&self.data_dir.join("text_templates.json"))?;
         let image_templates = load_json(&self.data_dir.join("image_templates.json"))?;
         let page_cache = self.load_page_cache()?;
-
         let image_loop_tasks = self.load_image_loop_tasks()?;
+        let stock_watchlist = self.load_stock_watchlist()?;
 
         Ok(BootstrapState {
             api_keys,
@@ -508,6 +508,7 @@ impl AppState {
             last_sync_time: config.last_sync_time,
             page_cache,
             image_loop_tasks,
+            stock_watchlist,
         })
     }
 
@@ -599,6 +600,50 @@ impl AppState {
 
     fn load_page_cache(&self) -> anyhow::Result<Vec<PageCacheRecord>> {
         load_json(&self.data_dir.join("page_cache.json"))
+    }
+
+    fn load_stock_watchlist(&self) -> anyhow::Result<Vec<StockWatchRecord>> {
+        load_json(&self.data_dir.join("stock_watchlist.json"))
+    }
+
+    pub fn list_stock_watchlist(&self) -> anyhow::Result<Vec<StockWatchRecord>> {
+        self.load_stock_watchlist()
+    }
+
+    fn save_stock_watchlist(&self, records: &[StockWatchRecord]) -> anyhow::Result<()> {
+        let records = records.to_vec();
+        save_json(&self.data_dir.join("stock_watchlist.json"), &records)
+    }
+
+    pub fn add_stock_watch(&self, code: &str) -> anyhow::Result<StockWatchRecord> {
+        let normalized = crate::stock_quote::normalize_stock_code(code)?;
+        let mut records = self.load_stock_watchlist()?;
+
+        if records.iter().any(|record| record.code == normalized) {
+            anyhow::bail!("股票代码 {normalized} 已存在");
+        }
+
+        let record = StockWatchRecord {
+            code: normalized,
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+        records.push(record.clone());
+        self.save_stock_watchlist(&records)?;
+
+        Ok(record)
+    }
+
+    pub fn remove_stock_watch(&self, code: &str) -> anyhow::Result<()> {
+        let normalized = crate::stock_quote::normalize_stock_code(code)?;
+        let mut records = self.load_stock_watchlist()?;
+        let before = records.len();
+        records.retain(|record| record.code != normalized);
+
+        if records.len() == before {
+            anyhow::bail!("股票代码 {normalized} 未找到");
+        }
+
+        self.save_stock_watchlist(&records)
     }
 
     pub fn get_page_cache_list(&self, device_id: &str) -> anyhow::Result<Vec<PageCacheRecord>> {
@@ -966,6 +1011,22 @@ impl AppState {
         }
 
         Ok(())
+    }
+
+    pub async fn push_stock_quotes(&self, device_id: &str, page_id: u32) -> anyhow::Result<()> {
+        let records = self.load_stock_watchlist()?;
+        if records.is_empty() {
+            anyhow::bail!("股票列表为空");
+        }
+
+        let codes = records
+            .iter()
+            .map(|record| record.code.clone())
+            .collect::<Vec<_>>();
+        let quotes = crate::stock_quote::fetch_eastmoney_quotes(&codes).await?;
+        let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
+
+        self.push_text(&text, Some(20), device_id, Some(page_id)).await
     }
 
     pub async fn push_structured_text(
@@ -1892,6 +1953,55 @@ mod tests {
         assert_eq!(todo_without_cloud_id.id, None);
         assert_eq!(todo_without_cloud_id.title, "Read book");
         assert_eq!(todo_without_cloud_id.last_synced_status, None);
+    }
+
+    #[test]
+    fn load_bootstrap_state_includes_stock_watchlist() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = test_state(&temp);
+
+        save_json(
+            &temp.path().join("stock_watchlist.json"),
+            &vec![StockWatchRecord {
+                code: "600519".to_string(),
+                created_at: "2026-04-25T10:30:00Z".to_string(),
+            }],
+        )
+        .unwrap();
+
+        let bootstrap = state.load_bootstrap_state().unwrap();
+
+        assert_eq!(bootstrap.stock_watchlist.len(), 1);
+        assert_eq!(bootstrap.stock_watchlist[0].code, "600519");
+    }
+
+    #[test]
+    fn adds_and_removes_stock_watch_records() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = test_state(&temp);
+
+        let created = state.add_stock_watch("600519").unwrap();
+        assert_eq!(created.code, "600519");
+
+        let list = state.list_stock_watchlist().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].code, "600519");
+
+        let duplicate = state.add_stock_watch("600519").unwrap_err().to_string();
+        assert!(duplicate.contains("已存在"));
+
+        state.remove_stock_watch("600519").unwrap();
+        assert!(state.list_stock_watchlist().unwrap().is_empty());
+    }
+
+    #[test]
+    fn rejects_invalid_stock_watch_code() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = test_state(&temp);
+
+        let error = state.add_stock_watch("830000").unwrap_err().to_string();
+
+        assert!(error.contains("仅支持"));
     }
 
     #[test]

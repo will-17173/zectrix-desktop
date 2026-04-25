@@ -2,11 +2,13 @@ import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import { SettingsPage } from "./settings-page";
 
-const { addApiKey, removeApiKey, addDeviceCache, removeDeviceCache } = vi.hoisted(() => ({
+const { addApiKey, removeApiKey, addDeviceCache, removeDeviceCache, getCurrentVersion, checkForUpdate } = vi.hoisted(() => ({
   addApiKey: vi.fn().mockResolvedValue({ id: 1, name: "test", key: "zt_test", createdAt: "2026-04-23T00:00:00Z" }),
   removeApiKey: vi.fn().mockResolvedValue(undefined),
   addDeviceCache: vi.fn().mockResolvedValue({ deviceId: "AA:BB:CC:DD:EE:FF", alias: "Test Device", board: "board", apiKeyId: 1 }),
   removeDeviceCache: vi.fn().mockResolvedValue(undefined),
+  getCurrentVersion: vi.fn(() => new Promise<string>(() => {})),
+  checkForUpdate: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("../../lib/tauri", () => ({
@@ -14,6 +16,8 @@ vi.mock("../../lib/tauri", () => ({
   removeApiKey,
   addDeviceCache,
   removeDeviceCache,
+  getCurrentVersion,
+  checkForUpdate,
 }));
 
 test("adds and removes API keys", async () => {

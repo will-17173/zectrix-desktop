@@ -8,11 +8,80 @@ import App from "./App";
 
 const mockSyncAll = vi.fn();
 
+vi.mock("../components/ui/toast", () => ({
+  Toaster: () => null,
+  toast: {
+    loading: vi.fn((message: string) => {
+      document.querySelectorAll("[data-mock-toast]").forEach((node) => node.remove());
+      const node = document.createElement("div");
+      node.setAttribute("data-mock-toast", "true");
+      node.textContent = message;
+      document.body.appendChild(node);
+    }),
+    success: vi.fn((message: string) => {
+      document.querySelectorAll("[data-mock-toast]").forEach((node) => node.remove());
+      const node = document.createElement("div");
+      node.setAttribute("data-mock-toast", "true");
+      node.textContent = message;
+      document.body.appendChild(node);
+    }),
+    error: vi.fn((message: string) => {
+      document.querySelectorAll("[data-mock-toast]").forEach((node) => node.remove());
+      const node = document.createElement("div");
+      node.setAttribute("data-mock-toast", "true");
+      node.textContent = message;
+      document.body.appendChild(node);
+    }),
+  },
+}));
+
+vi.mock("../features/free-layout/free-layout-page", () => ({
+  FreeLayoutPage: () => <h2>自由排版</h2>,
+}));
+
+vi.mock("../features/images/image-templates-page", () => ({
+  ImageTemplatesPage: () => <h2>图片推送</h2>,
+}));
+
+vi.mock("../features/page-manager/page-manager-page", () => ({
+  PageManagerPage: () => <h2>页面管理</h2>,
+}));
+
+vi.mock("../features/settings/settings-page", () => ({
+  SettingsPage: () => <h2>设置</h2>,
+}));
+
+vi.mock("../features/sketch/sketch-page", () => ({
+  SketchPage: () => <h2>涂鸦推送</h2>,
+}));
+
+vi.mock("../features/stocks/stock-push-page", () => ({
+  StockPushPage: () => <section>股票推送页面</section>,
+}));
+
+vi.mock("../features/templates/text-templates-page", () => ({
+  TextTemplatesPage: () => <h2>文本推送</h2>,
+}));
+
+vi.mock("../features/todos/todo-list-page", () => ({
+  TodoListPage: ({ onSync }: { onSync?: () => Promise<void> | void }) => (
+    <section>
+      <button type="button">添加待办</button>
+      {onSync ? (
+        <button type="button" onClick={() => void onSync()}>
+          同步待办
+        </button>
+      ) : null}
+    </section>
+  ),
+}));
+
 vi.mock("../lib/tauri", () => ({
   loadBootstrapState: vi.fn().mockResolvedValue({
     apiKeys: [],
     devices: [],
     todos: [],
+    stockWatchlist: [],
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
@@ -24,6 +93,9 @@ vi.mock("../lib/tauri", () => ({
   deleteLocalTodo: vi.fn(),
   updateLocalTodo: vi.fn(),
   pushTodoToDevice: vi.fn(),
+  addStockWatch: vi.fn(),
+  removeStockWatch: vi.fn(),
+  pushStockQuotes: vi.fn(),
   pushText: vi.fn(),
   saveImageTemplate: vi.fn(),
   pushImageTemplate: vi.fn(),
@@ -36,10 +108,12 @@ vi.mock("../lib/tauri", () => ({
 
 beforeEach(() => {
   mockSyncAll.mockReset();
+  document.querySelectorAll("[data-mock-toast]").forEach((node) => node.remove());
   vi.mocked(loadBootstrapState).mockResolvedValue({
     apiKeys: [],
     devices: [],
     todos: [],
+    stockWatchlist: [],
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
@@ -80,6 +154,7 @@ test("runs manual sync and shows success feedback", async () => {
     apiKeys: [{ id: 1, name: "test", key: "zt_test", createdAt: "2026-04-23T00:00:00Z" }],
     devices: [],
     todos: [],
+    stockWatchlist: [],
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
@@ -91,6 +166,7 @@ test("runs manual sync and shows success feedback", async () => {
     apiKeys: [{ id: 1, name: "test", key: "zt_test", createdAt: "2026-04-23T00:00:00Z" }],
     devices: [{ deviceId: "AA:BB", alias: "synced", board: "b", apiKeyId: 1 }],
     todos: [],
+    stockWatchlist: [],
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
@@ -118,6 +194,7 @@ test("shows sync failure feedback when manual sync throws", async () => {
     apiKeys: [{ id: 1, name: "test", key: "zt_test", createdAt: "2026-04-23T00:00:00Z" }],
     devices: [],
     todos: [],
+    stockWatchlist: [],
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],
@@ -171,12 +248,26 @@ test("renders settings in the sidebar footer group", async () => {
   expect(within(footerNav).getByRole("link", { name: "设置" })).toBeInTheDocument();
 });
 
+test("renders the stock push route from the sidebar", async () => {
+  render(
+    <MemoryRouter>
+      <App />
+    </MemoryRouter>,
+  );
+
+  const stockPushLink = await screen.findByRole("link", { name: "股票推送" });
+  await userEvent.click(stockPushLink);
+
+  expect(await screen.findByText("股票推送页面")).toBeInTheDocument();
+});
+
 test("renders the redesigned toolbar title, sync action, and compact status badge", async () => {
   const { loadBootstrapState } = await import("../lib/tauri");
   vi.mocked(loadBootstrapState).mockResolvedValue({
     apiKeys: [{ id: 1, name: "test", key: "zt_test", createdAt: "2026-04-23T00:00:00Z" }],
     devices: [],
     todos: [],
+    stockWatchlist: [],
     textTemplates: [],
     imageTemplates: [],
     imageLoopTasks: [],

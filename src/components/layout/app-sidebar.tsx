@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { CheckSquare, FileText, Image, Settings, PenTool, LayoutGrid, Layers } from "lucide-react";
+import { CheckSquare, FileText, Image, Settings, PenTool, LayoutGrid, Layers, TrendingUp } from "lucide-react";
 import { useWindowDrag } from "../../hooks/use-window-drag";
 
 export function GithubIcon({ size = 16 }: { size?: number }) {
@@ -55,6 +55,7 @@ const primaryNavItems = [
   { label: "涂鸦推送", icon: PenTool, href: "/sketch-push" },
   { label: "图片推送", icon: Image, href: "/image-push" },
   { label: "自由排版", icon: LayoutGrid, href: "/free-layout" },
+  { label: "股票推送", icon: TrendingUp, href: "/stock-push" },
   { label: "文本推送", icon: FileText, href: "/text-push" },
   { label: "页面管理", icon: Layers, href: "/page-manager" },
 ];

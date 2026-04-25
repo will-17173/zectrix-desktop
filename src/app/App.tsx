@@ -7,10 +7,12 @@ import { FreeLayoutPage } from "../features/free-layout/free-layout-page";
 import { ImageTemplatesPage } from "../features/images/image-templates-page";
 import { SettingsPage } from "../features/settings/settings-page";
 import { SketchPage } from "../features/sketch/sketch-page";
+import { StockPushPage } from "../features/stocks/stock-push-page";
 import { TextTemplatesPage } from "../features/templates/text-templates-page";
 import { PageManagerPage } from "../features/page-manager/page-manager-page";
 import { TodoListPage } from "../features/todos/todo-list-page";
 import {
+  addStockWatch,
   addDeviceCache,
   addApiKey,
   removeApiKey,
@@ -22,8 +24,10 @@ import {
   pushFreeLayoutText,
   pushImageTemplate,
   pushSketch,
+  pushStockQuotes,
   pushText,
   pushTodoToDevice,
+  removeStockWatch,
   removeDeviceCache,
   saveImageTemplate,
   syncAll,
@@ -47,6 +51,7 @@ const emptyState: BootstrapState = {
   textTemplates: [],
   imageTemplates: [],
   imageLoopTasks: [],
+  stockWatchlist: [],
   lastSyncTime: null,
   pageCache: [],
 };
@@ -56,6 +61,7 @@ const sectionTitles: Record<string, string> = {
   "/sketch-push": "涂鸦推送",
   "/image-push": "图片推送",
   "/free-layout": "自由排版",
+  "/stock-push": "股票推送",
   "/text-push": "文本推送",
   "/page-manager": "页面管理",
   "/settings": "设置",
@@ -202,6 +208,27 @@ export default function App() {
         <FreeLayoutPage
           devices={state.devices}
           onPushText={pushFreeLayoutText}
+        />
+      );
+    }
+    if (path === "/stock-push") {
+      return (
+        <StockPushPage
+          devices={state.devices}
+          watchlist={state.stockWatchlist}
+          onAddStock={async (code) => {
+            const record = await addStockWatch(code);
+            setState((prev) => ({ ...prev, stockWatchlist: [...prev.stockWatchlist, record] }));
+            return record;
+          }}
+          onRemoveStock={async (code) => {
+            await removeStockWatch(code);
+            setState((prev) => ({
+              ...prev,
+              stockWatchlist: prev.stockWatchlist.filter((stock) => stock.code !== code),
+            }));
+          }}
+          onPushStocks={pushStockQuotes}
         />
       );
     }

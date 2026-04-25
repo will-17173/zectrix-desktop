@@ -44,6 +44,11 @@ export type ImageFolderScanResult = {
   warning?: string;
 };
 
+export type StockWatchRecord = {
+  code: string;
+  createdAt: string;
+};
+
 export type BootstrapState = {
   apiKeys: ApiKeyRecord[];
   devices: DeviceRecord[];
@@ -53,6 +58,7 @@ export type BootstrapState = {
   lastSyncTime: string | null;
   pageCache: Array<PageCacheRecord>;
   imageLoopTasks: Array<ImageLoopTask>;
+  stockWatchlist: Array<StockWatchRecord>;
 };
 
 export async function loadBootstrapState(): Promise<BootstrapState> {
@@ -299,4 +305,20 @@ export async function scanImageFolder(folderPath: string): Promise<ImageFolderSc
 
 export async function selectFolderDialog(): Promise<string | null> {
   return invoke<string | null>("select_folder_dialog");
+}
+
+export async function listStockWatchlist(): Promise<StockWatchRecord[]> {
+  return invoke<StockWatchRecord[]>("list_stock_watchlist");
+}
+
+export async function addStockWatch(code: string): Promise<StockWatchRecord> {
+  return invoke<StockWatchRecord>("add_stock_watch", { code });
+}
+
+export async function removeStockWatch(code: string): Promise<void> {
+  return invoke("remove_stock_watch", { code });
+}
+
+export async function pushStockQuotes(deviceId: string, pageId: number): Promise<void> {
+  return invoke("push_stock_quotes", { deviceId, pageId });
 }

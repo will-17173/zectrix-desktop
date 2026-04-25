@@ -38,6 +38,8 @@ pub struct BootstrapState {
     pub page_cache: Vec<PageCacheRecord>,
     #[serde(default)]
     pub image_loop_tasks: Vec<ImageLoopTaskRecord>,
+    #[serde(default)]
+    pub stock_watchlist: Vec<StockWatchRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,6 +162,14 @@ pub struct PageCacheRecord {
     pub thumbnail: Option<String>,
     pub metadata: Option<String>,
     pub pushed_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StockWatchRecord {
+    pub code: String,
+    #[serde(alias = "created_at", rename = "createdAt")]
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

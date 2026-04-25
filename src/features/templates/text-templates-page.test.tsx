@@ -15,7 +15,9 @@ test("pushes structured text directly to a device with selected page", async () 
 
   await user.type(screen.getByLabelText("标题"), "出门提醒");
   await user.type(screen.getByLabelText("正文"), "带钥匙\n带工牌");
-  await user.selectOptions(screen.getByLabelText("目标页面"), "2");
+  await user.click(screen.getByRole("combobox", { name: "目标页面" }));
+  await user.click(screen.getByRole("option", { name: "第 2 页" }));
+  expect(screen.getByRole("combobox", { name: "目标页面" })).toHaveTextContent("第 2 页");
   await user.click(screen.getByRole("button", { name: "推送" }));
 
   expect(screen.queryByLabelText("字体大小")).not.toBeInTheDocument();

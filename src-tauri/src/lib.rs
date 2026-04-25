@@ -2,6 +2,7 @@ mod api;
 mod commands;
 mod models;
 mod state;
+mod stock_quote;
 mod storage;
 
 use tauri::Manager;
@@ -46,6 +47,10 @@ pub fn run() {
             commands::images::push_sketch,
             commands::page_cache::get_page_cache_list,
             commands::page_cache::delete_page_cache,
+            commands::stocks::list_stock_watchlist,
+            commands::stocks::add_stock_watch,
+            commands::stocks::remove_stock_watch,
+            commands::stocks::push_stock_quotes,
             commands::updater::check_for_update,
             commands::updater::get_current_version,
             commands::image_loop::scan_image_folder,

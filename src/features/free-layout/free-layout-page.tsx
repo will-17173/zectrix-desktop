@@ -1,4 +1,11 @@
 import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import { toast } from "../../components/ui/toast";
 
 type Device = { deviceId: string; alias: string; board: string };
@@ -77,35 +84,41 @@ export function FreeLayoutPage({ devices, onPushText }: Props) {
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="font-size" className="block text-sm font-medium">字号</label>
-          <select
-            id="font-size"
-            value={fontSize}
-            onChange={(e) => setFontSize(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-          >
-            {FONT_SIZE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <label id="font-size-label" htmlFor="font-size-trigger" className="block text-sm font-medium">字号</label>
+          <Select value={String(fontSize)} onValueChange={(value) => setFontSize(Number(value))}>
+            <SelectTrigger
+              id="font-size-trigger"
+              aria-labelledby="font-size-label font-size-trigger"
+            >
+              <SelectValue placeholder="选择字号" />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_SIZE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="page-id" className="block text-sm font-medium">页码</label>
-          <select
-            id="page-id"
-            value={pageId}
-            onChange={(e) => setPageId(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-          >
-            {PAGE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <label id="page-id-label" htmlFor="page-id-trigger" className="block text-sm font-medium">页码</label>
+          <Select value={String(pageId)} onValueChange={(value) => setPageId(Number(value))}>
+            <SelectTrigger
+              id="page-id-trigger"
+              aria-labelledby="page-id-label page-id-trigger"
+            >
+              <SelectValue placeholder="选择页面" />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <button
