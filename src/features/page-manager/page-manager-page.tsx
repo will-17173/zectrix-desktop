@@ -124,7 +124,7 @@ export function PageManagerPage({ devices, onRefreshLoopTasks }: Props) {
       <div>
         <h2 className="text-lg font-semibold">页面管理</h2>
         <p className="text-sm text-gray-500">
-          查看和管理每个设备的墨水屏页面内容。
+          注意：你在其它设备推送的页面内容不会同步到这里。
         </p>
       </div>
 
