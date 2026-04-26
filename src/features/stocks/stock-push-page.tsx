@@ -205,7 +205,7 @@ export function StockPushPage({
 
   return (
     <section className="space-y-6">
-      <header className="rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 border border-emerald-100">
+      <header className="rounded-lg bg-gradient-to-r from-red-50 to-rose-50 px-4 py-3 border border-red-100">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">股票推送</h2>
@@ -214,7 +214,7 @@ export function StockPushPage({
         </div>
       </header>
 
-      <div className="space-y-4 max-w-md rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/30 to-white p-4 shadow-sm">
+      <div className="space-y-4 max-w-md rounded-xl border border-red-200 bg-gradient-to-br from-red-50/30 to-white p-4 shadow-sm">
         <div className="space-y-2">
           <label htmlFor="stock-code" className="block text-sm font-medium text-gray-700">
             股票代码
@@ -233,13 +233,13 @@ export function StockPushPage({
               placeholder="例如 600519"
               inputMode="numeric"
               maxLength={6}
-              className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
             />
             <button
               type="button"
               onClick={handleAdd}
               disabled={isAdding || !code.trim()}
-              className="rounded-md bg-emerald-500 px-4 py-2 text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-emerald-300 shadow-sm transition"
+              className="rounded-md bg-red-500 px-4 py-2 text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 shadow-sm transition"
             >
               {isAdding ? "添加中..." : "添加"}
             </button>
@@ -249,11 +249,11 @@ export function StockPushPage({
         <div className="space-y-2">
           <div className="text-sm font-medium text-gray-700">已添加股票</div>
           {stocks.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/30 px-4 py-4 text-sm text-emerald-500">
+            <div className="rounded-lg border border-dashed border-red-300 bg-red-50/30 px-4 py-4 text-sm text-red-500">
               暂无股票代码
             </div>
           ) : (
-            <ul className="divide-y divide-gray-100 overflow-hidden rounded-md border border-emerald-200 bg-white">
+            <ul className="divide-y divide-gray-100 overflow-hidden rounded-md border border-red-200 bg-white">
               {stocks.map((stock) => {
                 const quote = getQuoteForCode(stock.code);
                 const isInvalid = quote ? !quote.valid : false;
@@ -264,7 +264,7 @@ export function StockPushPage({
                     className={`flex items-center justify-between gap-3 px-3 py-2 ${isInvalid ? "bg-gray-100 text-gray-400" : ""}`}
                   >
                     <div className="flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 rounded-full ${isInvalid ? "bg-gray-300" : "bg-emerald-400"}`}></div>
+                      <div className={`w-1.5 h-1.5 rounded-full ${isInvalid ? "bg-gray-300" : "bg-red-400"}`}></div>
                       <span className="font-mono text-sm">
                         {stock.code}
                         {stockName ? <span className="ml-2 text-xs text-gray-500">({stockName})</span> : null}
@@ -333,7 +333,7 @@ export function StockPushPage({
             type="button"
             onClick={handlePush}
             disabled={isPushing || isRunning}
-            className="flex-1 rounded-md bg-emerald-500 px-4 py-2 text-white hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-300 shadow-sm transition"
+            className="flex-1 rounded-md bg-red-500 px-4 py-2 text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:bg-red-300 shadow-sm transition"
           >
             {isPushing ? "推送中..." : "单次推送"}
           </button>
@@ -342,7 +342,7 @@ export function StockPushPage({
               type="button"
               onClick={handleStartLoop}
               disabled={isLooping}
-              className="flex-1 rounded-md bg-teal-500 px-4 py-2 text-white hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:cursor-not-allowed disabled:bg-teal-300 shadow-sm transition"
+              className="flex-1 rounded-md bg-rose-500 px-4 py-2 text-white hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:cursor-not-allowed disabled:bg-rose-300 shadow-sm transition"
             >
               {isLooping ? "启动中..." : "开始循环"}
             </button>
@@ -360,14 +360,14 @@ export function StockPushPage({
       </div>
 
       {pushTask && (
-        <div className="max-w-md rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50/30 to-white p-4 shadow-sm">
+        <div className="max-w-md rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50/30 to-white p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-1.5 h-1.5 rounded-full bg-teal-400"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-rose-400"></div>
             <div className="text-sm font-medium text-gray-900">任务状态</div>
           </div>
           <div className="text-sm text-gray-600 space-y-1">
             <p>
-              状态: <span className={`font-medium ${isRunning ? "text-emerald-600" : "text-gray-500"}`}>{isRunning ? "运行中" : "已停止"}</span>
+              状态: <span className={`font-medium ${isRunning ? "text-red-600" : "text-gray-500"}`}>{isRunning ? "运行中" : "已停止"}</span>
             </p>
             <p>
               设备: {devices.find((d) => d.deviceId === pushTask.deviceId)?.alias ?? pushTask.deviceId}
