@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { Checkbox } from "../../components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -535,7 +536,7 @@ type PluginCardProps = {
 };
 
 // 配置项分组：哪些放在配置对话框里，哪些直接显示
-const CONFIG_HIDDEN_KEYS = ["comfyuiUrl", "workflow", "promptNodeId", "promptField"];
+const CONFIG_HIDDEN_KEYS = ["comfyuiUrl", "workflow", "promptNodeId", "promptField", "seedNodeId", "seedField", "randomizeSeed"];
 
 // 使用插件 ID 作为 localStorage key，更稳定
 function getStorageKey(pluginId: string) {
@@ -702,6 +703,8 @@ function PluginCard({ name, description, config, supportsLoop = true, onPush, on
           <div className="space-y-4">
             {hiddenConfig.map((opt) => {
               const isTextarea = opt.inputType === "textarea";
+              const isCheckbox = opt.inputType === "checkbox";
+              const isSelect = !opt.inputType && opt.options && opt.options.length > 0;
               const inputType = opt.inputType === "password" ? "password" : "text";
               if (isTextarea) {
                 return (
@@ -714,6 +717,40 @@ function PluginCard({ name, description, config, supportsLoop = true, onPush, on
                       spellCheck={false}
                       placeholder="粘贴从 ComfyUI 导出的工作流 JSON..."
                     />
+                  </div>
+                );
+              }
+              if (isCheckbox) {
+                const checked = configValues[opt.name] === "true";
+                return (
+                  <div key={opt.name} className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 shrink-0 w-28">{opt.label}</label>
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(v) => updateConfigValue(opt.name, v ? "true" : "false")}
+                    />
+                  </div>
+                );
+              }
+              if (isSelect) {
+                return (
+                  <div key={opt.name} className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 shrink-0 w-28">{opt.label}</label>
+                    <Select
+                      value={configValues[opt.name] || opt.default}
+                      onValueChange={(v) => updateConfigValue(opt.name, v)}
+                    >
+                      <SelectTrigger className="w-[120px] h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {opt.options.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 );
               }
