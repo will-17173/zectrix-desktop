@@ -1,4 +1,4 @@
-const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX';
+const GA_MEASUREMENT_ID = 'G-80CZ0C1CZT';
 
 export function initAnalytics() {
   if (!import.meta.env.PROD) return;
