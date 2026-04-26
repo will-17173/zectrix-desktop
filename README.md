@@ -3,7 +3,7 @@
 极趣 Note 4 桌面客户端 — 待办管理、内容推送
 工具，配合 Zectrix 墨水屏设备使用。
 
-![应用主界面](./assets/images/image-1.png)
+![应用主界面](./assets/images/ui.png)
 
 ## 1. 项目介绍
 
