@@ -1,4 +1,3 @@
-#[cfg(test)]
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -35,11 +34,13 @@ struct EastmoneyQuote {
     f14: String,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct EastmoneyStockResponse {
     data: Option<EastmoneyStockData>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct EastmoneyStockData {
     f43: serde_json::Value,
@@ -58,6 +59,7 @@ pub fn normalize_stock_code(code: &str) -> anyhow::Result<String> {
     Ok(normalized.to_string())
 }
 
+#[cfg(test)]
 pub fn stock_code_to_secid(code: &str) -> anyhow::Result<String> {
     let normalized = normalize_stock_code(code)?;
     // 6 开头为上海证券交易所 (前缀1)，其他为深圳证券交易所 (前缀0)
@@ -109,6 +111,15 @@ pub fn format_stock_push_text(
     lines.join("\n")
 }
 
+pub fn ensure_has_valid_stock_quote(quotes: &[StockQuote]) -> anyhow::Result<()> {
+    if quotes.iter().any(|quote| quote.valid) {
+        return Ok(());
+    }
+
+    anyhow::bail!("无有效股票数据，请检查股票代码或稍后重试")
+}
+
+#[cfg(test)]
 fn number_field(value: &serde_json::Value, field: &str, code: &str) -> anyhow::Result<f64> {
     // 停牌或退市股票返回 "-"，视为无数据
     if let Some(text) = value.as_str() {
@@ -141,6 +152,113 @@ fn unavailable_stock_quote(code: &str, reason: Option<&str>) -> StockQuote {
         change_percent: 0.0,
         valid: false,
     }
+}
+
+fn stock_code_to_tencent_symbol(code: &str) -> anyhow::Result<String> {
+    let normalized = normalize_stock_code(code)?;
+    let market = if normalized.starts_with('6') {
+        "sh"
+    } else if normalized.starts_with('0') || normalized.starts_with('3') {
+        "sz"
+    } else if normalized.starts_with('4') || normalized.starts_with('8') {
+        "bj"
+    } else {
+        "sz"
+    };
+    Ok(format!("{market}{normalized}"))
+}
+
+fn parse_tencent_quotes(body: &str, requested_codes: &[String]) -> anyhow::Result<Vec<StockQuote>> {
+    let mut by_code = HashMap::new();
+
+    for line in body.lines() {
+        let Some((name_part, value_part)) = line.split_once("=\"") else {
+            continue;
+        };
+        let raw_value = value_part
+            .trim()
+            .trim_end_matches(';')
+            .trim_end_matches('"');
+        let fields = raw_value.split('~').collect::<Vec<_>>();
+        let Some(code) = fields.get(2).map(|field| field.trim().to_string()) else {
+            continue;
+        };
+        if normalize_stock_code(&code).is_err() || !name_part.contains(&code) {
+            continue;
+        }
+
+        if fields.len() < 33 {
+            by_code.insert(code.clone(), unavailable_stock_quote(&code, None));
+            continue;
+        }
+
+        let name = fields[1].trim();
+        let price = fields[3].trim().parse::<f64>().unwrap_or(0.0);
+        let change = fields[31].trim().parse::<f64>().unwrap_or(0.0);
+        let change_percent = fields[32].trim().parse::<f64>().unwrap_or(0.0);
+        let status = fields.get(40).copied().unwrap_or_default();
+        let is_valid = !name.is_empty() && price > 0.0 && status != "D";
+
+        by_code.insert(
+            code.clone(),
+            StockQuote {
+                code,
+                name: if name.is_empty() {
+                    "未知".to_string()
+                } else {
+                    name.to_string()
+                },
+                price: if is_valid { price } else { 0.0 },
+                change: if is_valid { change } else { 0.0 },
+                change_percent: if is_valid { change_percent } else { 0.0 },
+                valid: is_valid,
+            },
+        );
+    }
+
+    Ok(requested_codes
+        .iter()
+        .map(|code| normalize_stock_code(code))
+        .collect::<anyhow::Result<Vec<_>>>()?
+        .into_iter()
+        .map(|code| {
+            by_code
+                .remove(&code)
+                .unwrap_or_else(|| unavailable_stock_quote(&code, None))
+        })
+        .collect())
+}
+
+async fn fetch_tencent_quotes(codes: &[String]) -> anyhow::Result<Vec<StockQuote>> {
+    if codes.is_empty() {
+        anyhow::bail!("股票列表为空");
+    }
+
+    let symbols = codes
+        .iter()
+        .filter_map(|code| stock_code_to_tencent_symbol(code).ok())
+        .collect::<Vec<_>>();
+    if symbols.is_empty() {
+        return Ok(codes
+            .iter()
+            .map(|code| unavailable_stock_quote(code.trim(), Some("代码无效")))
+            .collect());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .user_agent("Mozilla/5.0")
+        .build()?;
+    let url = format!("https://qt.gtimg.cn/q={}", symbols.join(","));
+    let response = client.get(&url).send().await?;
+    if !response.status().is_success() {
+        anyhow::bail!("腾讯行情接口请求失败: {}", response.status());
+    }
+
+    let bytes = response.bytes().await?;
+    let (body, _, _) = encoding_rs::GBK.decode(&bytes);
+    parse_tencent_quotes(&body, codes)
 }
 
 #[cfg(test)]
@@ -217,6 +335,7 @@ fn parse_eastmoney_quotes(
         .collect())
 }
 
+#[cfg(test)]
 pub fn parse_eastmoney_stock_quote(body: &str, requested_code: &str) -> anyhow::Result<StockQuote> {
     let code = normalize_stock_code(requested_code)?;
     let response: EastmoneyStockResponse = serde_json::from_str(body)?;
@@ -260,64 +379,8 @@ pub fn parse_eastmoney_stock_quote(body: &str, requested_code: &str) -> anyhow::
     })
 }
 
-pub async fn fetch_eastmoney_quotes(codes: &[String]) -> anyhow::Result<Vec<StockQuote>> {
-    if codes.is_empty() {
-        anyhow::bail!("股票列表为空");
-    }
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .connect_timeout(std::time::Duration::from_secs(5))
-        .user_agent("Mozilla/5.0")
-        .build()?;
-
-    let mut quotes = Vec::with_capacity(codes.len());
-    for code in codes {
-        let Ok(normalized) = normalize_stock_code(code) else {
-            quotes.push(unavailable_stock_quote(code.trim(), Some("代码无效")));
-            continue;
-        };
-        let Ok(secid) = stock_code_to_secid(&normalized) else {
-            quotes.push(unavailable_stock_quote(&normalized, Some("代码无效")));
-            continue;
-        };
-        let url = format!(
-            "https://push2.eastmoney.com/api/qt/stock/get?fltt=2&invt=2&fields=f43,f57,f58,f169,f170&secid={secid}"
-        );
-
-        let response = match client
-            .get(&url)
-            .header("Referer", "https://quote.eastmoney.com/")
-            .send()
-            .await
-        {
-            Ok(response) => response,
-            Err(_) => {
-                quotes.push(unavailable_stock_quote(&normalized, Some("获取失败")));
-                continue;
-            }
-        };
-
-        if !response.status().is_success() {
-            quotes.push(unavailable_stock_quote(&normalized, Some("获取失败")));
-            continue;
-        }
-
-        let body = match response.text().await {
-            Ok(body) => body,
-            Err(_) => {
-                quotes.push(unavailable_stock_quote(&normalized, Some("获取失败")));
-                continue;
-            }
-        };
-
-        match parse_eastmoney_stock_quote(&body, &normalized) {
-            Ok(quote) => quotes.push(quote),
-            Err(_) => quotes.push(unavailable_stock_quote(&normalized, Some("解析失败"))),
-        }
-    }
-
-    Ok(quotes)
+pub async fn fetch_stock_quotes(codes: &[String]) -> anyhow::Result<Vec<StockQuote>> {
+    fetch_tencent_quotes(codes).await
 }
 
 #[cfg(test)]
@@ -410,6 +473,54 @@ mod tests {
             text,
             "更新时间：2026-04-25 10:30:12\n\n600519 贵州茅台 1458.49 +39.49 +2.78%"
         );
+    }
+
+    #[test]
+    fn rejects_pushes_when_every_quote_is_invalid() {
+        let result = ensure_has_valid_stock_quote(&[
+            StockQuote {
+                code: "999999".to_string(),
+                name: "未知".to_string(),
+                price: 0.0,
+                change: 0.0,
+                change_percent: 0.0,
+                valid: false,
+            },
+            StockQuote {
+                code: "000000".to_string(),
+                name: "未知".to_string(),
+                price: 0.0,
+                change: 0.0,
+                change_percent: 0.0,
+                valid: false,
+            },
+        ]);
+
+        assert!(result.unwrap_err().to_string().contains("无有效股票数据"));
+    }
+
+    #[test]
+    fn allows_pushes_when_any_quote_is_valid() {
+        let result = ensure_has_valid_stock_quote(&[
+            StockQuote {
+                code: "600519".to_string(),
+                name: "贵州茅台".to_string(),
+                price: 1458.49,
+                change: 39.49,
+                change_percent: 2.78,
+                valid: true,
+            },
+            StockQuote {
+                code: "999999".to_string(),
+                name: "未知".to_string(),
+                price: 0.0,
+                change: 0.0,
+                change_percent: 0.0,
+                valid: false,
+            },
+        ]);
+
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -558,5 +669,32 @@ mod tests {
         assert_eq!(quote.change, 0.0);
         assert_eq!(quote.change_percent, 0.0);
         assert!(!quote.valid);
+    }
+
+    #[test]
+    fn parses_tencent_quotes_in_requested_order_and_marks_delisted_stock_invalid() {
+        let body = r#"v_sh600000="1~浦发银行~600000~9.45~9.54~9.53~848590~275116~573474~9.44~2856~9.43~17850~9.42~5989~9.41~5122~9.40~8231~9.45~351~9.46~836~9.47~1191~9.48~956~9.49~561~~20260424161422~-0.09~-0.94~9.62~9.43~9.45/848590/806720096~848590~80672~0.25~6.29~~9.62~9.43~1.99~3147.40~3147.40~0.43~10.49~8.59~1.22~36153~9.51~6.29~6.29~~~0.32~80672.0096~0.0000~0~ ~GP-A~-24.04~-4.16~3.94~6.12~0.50~14.39~9.43~-4.45~-6.06~-12.01~33305838300~33305838300~82.27~-27.70~33305838300~~~-8.52~0.00~~CNY~0~___D__F__N~9.38~3012~";
+v_sh600019="1~宝钢股份~600019~6.35~6.38~6.39~588359~320458~267901~6.35~2841~6.34~7928~6.33~9935~6.32~5417~6.31~11474~6.36~4603~6.37~8643~6.38~6578~6.39~6620~6.40~8505~~20260424161403~-0.03~-0.47~6.39~6.31~6.35/588359/373815250~588359~37382~0.27~14.65~~6.39~6.31~1.25~1383.16~1383.16~0.68~7.02~5.74~0.57~";
+v_sh600001="1~邯郸钢铁~600001~5.29~5.29~0.00~0~0~0~0.00~0~0.00~0~0.00~0~0.00~0~0.00~0~0.00~0~0.00~0~0.00~0~0.00~0~0.00~0~~20260424090000~0.00~0.00~0.00~0.00~5.29/0/0~0~0~0.00~-673.65~D~0.00~0.00~0.00~148.99~148.99~1.20~-1~-1~0.00~0~0.00~55.62~24.86~~~~0.0000~0.0000~0~ ~GP-A~0.00~0.00~0.00~-0.18~-0.08~~~0.00~0.00~0.00~2816456569~2816456569~~0.00~2816456569~~~0.00~0.00~~CNY~0~~0.00~0~";"#;
+
+        let quotes = parse_tencent_quotes(
+            body,
+            &[
+                "600001".to_string(),
+                "600000".to_string(),
+                "600019".to_string(),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(quotes[0].code, "600001");
+        assert!(!quotes[0].valid);
+        assert_eq!(quotes[1].name, "浦发银行");
+        assert_eq!(quotes[1].price, 9.45);
+        assert_eq!(quotes[1].change, -0.09);
+        assert_eq!(quotes[1].change_percent, -0.94);
+        assert!(quotes[1].valid);
+        assert_eq!(quotes[2].name, "宝钢股份");
+        assert!(quotes[2].valid);
     }
 }

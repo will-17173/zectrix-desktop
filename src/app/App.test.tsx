@@ -292,6 +292,9 @@ test("renders the plugin market route from the sidebar", async () => {
   await userEvent.click(pluginLink);
 
   expect(await screen.findByText("暂无内置插件")).toBeInTheDocument();
+  // 新增插件按钮在自定义插件 tab，需要切换 tab
+  const customTab = screen.getByRole("tab", { name: "自定义插件" });
+  await userEvent.click(customTab);
   expect(screen.getByRole("button", { name: "新增插件" })).toBeInTheDocument();
 });
 
@@ -334,6 +337,17 @@ test("renders the redesigned toolbar title, sync action, and compact status badg
   expect(await screen.findByRole("banner")).toHaveClass("app-toolbar");
   expect(screen.getByRole("heading", { name: "待办事项" })).toHaveClass("app-toolbar-title");
   expect(screen.getByRole("button", { name: "同步待办" })).toBeInTheDocument();
+});
+
+test("renders the current menu English title in the toolbar kicker", async () => {
+  render(
+    <MemoryRouter initialEntries={["/text-push"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByRole("banner")).toHaveTextContent("Text Push");
+  expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
 });
 
 test("applies the new shell utility classes required by the Playground-lite layout", async () => {

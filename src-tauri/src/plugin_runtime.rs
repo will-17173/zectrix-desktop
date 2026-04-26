@@ -5,11 +5,17 @@ use rquickjs::promise::MaybePromise;
 use rquickjs::{
     Context, Ctx, Error as JsError, Exception, Function, Runtime, String as JsString, Value,
 };
+use std::collections::HashMap;
 use std::time::Duration;
 
-pub async fn run_plugin_code(code: &str) -> anyhow::Result<serde_json::Value> {
+use qrcode::QrCode;
+
+pub async fn run_plugin_code(
+    code: &str,
+    config: HashMap<String, String>,
+) -> anyhow::Result<serde_json::Value> {
     let code = code.to_owned();
-    let execution = tokio::task::spawn_blocking(move || run_plugin_code_blocking(&code));
+    let execution = tokio::task::spawn_blocking(move || run_plugin_code_blocking(&code, config));
 
     match tokio::time::timeout(Duration::from_secs(20), execution).await {
         Ok(joined) => match joined {
@@ -20,16 +26,23 @@ pub async fn run_plugin_code(code: &str) -> anyhow::Result<serde_json::Value> {
     }
 }
 
-fn run_plugin_code_blocking(code: &str) -> anyhow::Result<serde_json::Value> {
+fn run_plugin_code_blocking(
+    code: &str,
+    config: HashMap<String, String>,
+) -> anyhow::Result<serde_json::Value> {
     let runtime = Runtime::new()?;
     let context = Context::full(&runtime)?;
 
     context.with(|ctx| {
         install_helpers(ctx.clone())?;
 
-        let wrapped_code = format!("(async function() {{\n{code}\n}})()");
+        // 注入 config 对象到 JS 全局
+        let config_value = rquickjs_serde::to_value(ctx.clone(), &config)
+            .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))?;
+        ctx.globals().set("config", config_value)?;
+
         let maybe_promise = ctx
-            .eval::<MaybePromise<'_>, _>(wrapped_code)
+            .eval::<MaybePromise<'_>, _>(code)
             .map_err(|error| quickjs_error_to_anyhow(&ctx, error))?;
         let value = maybe_promise
             .finish::<Value<'_>>()
@@ -46,6 +59,7 @@ fn install_helpers<'js>(ctx: Ctx<'js>) -> anyhow::Result<()> {
     globals.set("fetchJson", Function::new(ctx.clone(), fetch_json_js)?)?;
     globals.set("fetchText", Function::new(ctx.clone(), fetch_text_js)?)?;
     globals.set("fetchBase64", Function::new(ctx.clone(), fetch_base64_js)?)?;
+    globals.set("generateQrCode", Function::new(ctx.clone(), generate_qrcode_js)?)?;
 
     Ok(())
 }
@@ -114,6 +128,24 @@ fn fetch_base64_blocking(url: &str) -> anyhow::Result<String> {
     Ok(format!("data:{content_type};base64,{b64}"))
 }
 
+fn generate_qrcode_js<'js>(ctx: Ctx<'js>, text: String) -> rquickjs::Result<String> {
+    generate_qrcode_blocking(&text)
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))
+}
+
+fn generate_qrcode_blocking(text: &str) -> anyhow::Result<String> {
+    let code = QrCode::new(text)?;
+    let image = code.render::<image::Luma<u8>>().build();
+
+    let mut buffer = Vec::new();
+    image
+        .write_to(&mut std::io::Cursor::new(&mut buffer), image::ImageFormat::Png)
+        .map_err(|e| anyhow::anyhow!("Failed to encode PNG: {}", e))?;
+
+    let b64 = BASE64.encode(&buffer);
+    Ok(format!("data:image/png;base64,{b64}"))
+}
+
 fn blocking_client() -> anyhow::Result<Client> {
     Ok(Client::builder().timeout(Duration::from_secs(15)).build()?)
 }
@@ -140,8 +172,11 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn runs_sync_returning_plugin_code() {
-        let output = run_plugin_code("return { type: 'text', text: 'hello' };")
+    async fn runs_async_iife_plugin_code() {
+        let output = run_plugin_code(
+            "(async function() { return { type: 'text', text: 'hello' }; })()",
+            HashMap::new(),
+        )
             .await
             .unwrap();
 
@@ -151,7 +186,10 @@ mod tests {
 
     #[tokio::test]
     async fn allows_await_on_plain_helper_values() {
-        let output = run_plugin_code("const value = await echoJson({ ok: true }); return { type: 'text', text: String(value.ok) };")
+        let output = run_plugin_code(
+            "(async function() { const value = await echoJson({ ok: true }); return { type: 'text', text: String(value.ok) }; })()",
+            HashMap::new(),
+        )
             .await
             .unwrap();
 
@@ -160,11 +198,35 @@ mod tests {
 
     #[tokio::test]
     async fn reports_js_errors() {
-        let err = run_plugin_code("throw new Error('boom');")
+        let err = run_plugin_code("(async function() { throw new Error('boom'); })()", HashMap::new())
             .await
             .unwrap_err()
             .to_string();
 
         assert!(err.contains("boom"));
+    }
+
+    #[tokio::test]
+    async fn rejects_bare_return_code() {
+        let err = run_plugin_code("return { type: 'text', text: 'hello' };", HashMap::new())
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("return"));
+    }
+
+    #[tokio::test]
+    async fn config_is_available_in_js() {
+        let mut config = HashMap::new();
+        config.insert("type".to_string(), "sfw".to_string());
+        let output = run_plugin_code(
+            "(async function() { return { type: 'text', text: config.type }; })()",
+            config,
+        )
+            .await
+            .unwrap();
+
+        assert_eq!(output["text"], "sfw");
     }
 }

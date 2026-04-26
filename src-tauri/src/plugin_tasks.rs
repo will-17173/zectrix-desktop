@@ -12,8 +12,10 @@ pub async fn run_plugin_loop_task_tick(data_dir: PathBuf, task_id: i64) -> anyho
         return Ok(());
     }
 
+    let config = task.config.clone().unwrap_or_default();
+
     if let Err(error) = state
-        .push_plugin_once(&task.plugin_kind, &task.plugin_id, &task.device_id, task.page_id)
+        .push_plugin_once(&task.plugin_kind, &task.plugin_id, &task.device_id, task.page_id, config)
         .await
     {
         let _ = state.mark_plugin_loop_task_error(task_id, &error.to_string());

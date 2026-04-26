@@ -219,6 +219,8 @@ pub struct PluginLoopTaskRecord {
     pub error_message: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default)]
+    pub config: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -233,6 +235,8 @@ pub struct PluginLoopTaskInput {
     pub duration_type: String,
     pub end_time: Option<String>,
     pub duration_minutes: Option<u32>,
+    #[serde(default)]
+    pub config: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

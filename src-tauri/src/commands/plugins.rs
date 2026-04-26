@@ -31,9 +31,10 @@ pub async fn run_plugin_once(
     state: tauri::State<'_, crate::state::AppState>,
     plugin_kind: String,
     plugin_id: String,
+    config: std::collections::HashMap<String, String>,
 ) -> Result<crate::models::PluginRunResult, String> {
     state
-        .run_plugin_once(&plugin_kind, &plugin_id)
+        .run_plugin_once(&plugin_kind, &plugin_id, config)
         .await
         .map_err(|e| e.to_string())
 }
@@ -45,9 +46,10 @@ pub async fn push_plugin_once(
     plugin_id: String,
     device_id: String,
     page_id: u32,
+    config: std::collections::HashMap<String, String>,
 ) -> Result<(), String> {
     state
-        .push_plugin_once(&plugin_kind, &plugin_id, &device_id, page_id)
+        .push_plugin_once(&plugin_kind, &plugin_id, &device_id, page_id, config)
         .await
         .map_err(|e| e.to_string())
 }

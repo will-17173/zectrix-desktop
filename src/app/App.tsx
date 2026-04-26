@@ -77,16 +77,21 @@ const emptyState: BootstrapState = {
   pageCache: [],
 };
 
-const sectionTitles: Record<string, string> = {
-  "/": "待办事项",
-  "/sketch-push": "涂鸦推送",
-  "/image-push": "图片推送",
-  "/free-layout": "自由排版",
-  "/stock-push": "股票推送",
-  "/text-push": "文本推送",
-  "/page-manager": "页面管理",
-  "/plugins": "插件市场",
-  "/settings": "设置",
+const fallbackSectionTitle = {
+  kicker: "Todo List",
+  title: "待办事项",
+};
+
+const sectionTitles: Record<string, { kicker: string; title: string }> = {
+  "/": fallbackSectionTitle,
+  "/sketch-push": { kicker: "Sketch Push", title: "涂鸦推送" },
+  "/image-push": { kicker: "Image Push", title: "图片推送" },
+  "/free-layout": { kicker: "Free Layout", title: "自由排版" },
+  "/stock-push": { kicker: "Stock Push", title: "股票推送" },
+  "/text-push": { kicker: "Text Push", title: "文本推送" },
+  "/page-manager": { kicker: "Page Manager", title: "页面管理" },
+  "/plugins": { kicker: "Plugin Market", title: "插件市场" },
+  "/settings": { kicker: "Settings", title: "设置" },
 };
 
 export default function App() {
@@ -155,7 +160,7 @@ export default function App() {
   }
 
   const path = location.pathname;
-  const title = sectionTitles[path] ?? "待办事项";
+  const sectionTitle = sectionTitles[path] ?? fallbackSectionTitle;
   const hasApiKey = state.apiKeys.length > 0;
 
   function renderContent() {
@@ -374,7 +379,7 @@ export default function App() {
       <AppSidebar />
       <main className="app-main">
         <div className="app-main-frame" aria-label="应用工作区外框">
-          <AppToolbar title={title} />
+          <AppToolbar kicker={sectionTitle.kicker} title={sectionTitle.title} />
           <Toaster position="top-center" />
           <section className="app-canvas" aria-label="主内容画布">
             {renderContent()}

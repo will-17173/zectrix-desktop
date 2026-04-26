@@ -297,11 +297,25 @@ export type CustomPluginRecord = {
   updatedAt: string;
 };
 
+export type PluginConfigOptionItem = {
+  value: string;
+  label: string;
+};
+
+export type PluginConfigOption = {
+  name: string;
+  label: string;
+  inputType?: string;
+  options?: PluginConfigOptionItem[];
+  default: string;
+};
+
 export type BuiltinPlugin = {
   id: string;
   name: string;
   description: string;
   code: string;
+  config?: PluginConfigOption[];
 };
 
 export type CustomPluginInput = {
@@ -336,6 +350,7 @@ export type PluginLoopTask = {
   errorMessage?: string;
   createdAt: string;
   updatedAt: string;
+  config?: Record<string, string>;
 };
 
 export type PluginLoopTaskInput = Omit<
@@ -363,17 +378,32 @@ export async function deleteCustomPlugin(pluginId: number): Promise<void> {
   return invoke("delete_custom_plugin", { pluginId });
 }
 
-export async function runPluginOnce(pluginKind: string, pluginId: string): Promise<PluginRunResult> {
-  return invoke<PluginRunResult>("run_plugin_once", { pluginKind, pluginId });
+export async function runPluginOnce(
+  pluginKind: string,
+  pluginId: string,
+  config?: Record<string, string>
+): Promise<PluginRunResult> {
+  return invoke<PluginRunResult>("run_plugin_once", {
+    pluginKind,
+    pluginId,
+    config: config ?? {},
+  });
 }
 
 export async function pushPluginOnce(
   pluginKind: string,
   pluginId: string,
   deviceId: string,
-  pageId: number
+  pageId: number,
+  config?: Record<string, string>
 ): Promise<void> {
-  return invoke("push_plugin_once", { pluginKind, pluginId, deviceId, pageId });
+  return invoke("push_plugin_once", {
+    pluginKind,
+    pluginId,
+    deviceId,
+    pageId,
+    config: config ?? {},
+  });
 }
 
 export async function createPluginLoopTask(input: PluginLoopTaskInput): Promise<PluginLoopTask> {

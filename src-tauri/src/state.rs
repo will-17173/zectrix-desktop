@@ -1,9 +1,8 @@
 use crate::models::{
-    ApiKeyRecord, AppConfig, BootstrapState, CropRect, CustomPluginInput,
-    CustomPluginRecord, DeviceRecord, ImageEditInput, ImageTemplateRecord,
-    ImageTemplateSaveInput, PageCacheRecord, PluginLoopTaskInput, PluginLoopTaskRecord,
-    PluginRunResult, StockPushTaskRecord, StockWatchRecord, TextTemplateInput,
-    TextTemplateRecord, TodoRecord, TodoUpsertInput,
+    ApiKeyRecord, AppConfig, BootstrapState, CropRect, CustomPluginInput, CustomPluginRecord,
+    DeviceRecord, ImageEditInput, ImageTemplateRecord, ImageTemplateSaveInput, PageCacheRecord,
+    PluginLoopTaskInput, PluginLoopTaskRecord, PluginRunResult, StockPushTaskRecord,
+    StockWatchRecord, TextTemplateInput, TextTemplateRecord, TodoRecord, TodoUpsertInput,
 };
 use crate::storage::{load_json, save_json};
 use base64::Engine;
@@ -12,12 +11,15 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
 /// Execute a single image push for a running loop task (standalone function for background task)
-async fn execute_image_loop_push(data_dir: PathBuf, task_id: i64) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
-    let mut tasks: Vec<crate::models::ImageLoopTaskRecord> = crate::storage::load_json(
-        &data_dir.join("image_loop_tasks.json"),
-    )?;
+async fn execute_image_loop_push(
+    data_dir: PathBuf,
+    task_id: i64,
+) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+    let mut tasks: Vec<crate::models::ImageLoopTaskRecord> =
+        crate::storage::load_json(&data_dir.join("image_loop_tasks.json"))?;
     let task_idx = tasks
         .iter()
         .position(|t| t.id == task_id)
@@ -28,9 +30,8 @@ async fn execute_image_loop_push(data_dir: PathBuf, task_id: i64) -> anyhow::Res
     }
 
     // 获取设备信息
-    let devices: Vec<crate::models::DeviceRecord> = crate::storage::load_json(
-        &data_dir.join("devices.json"),
-    )?;
+    let devices: Vec<crate::models::DeviceRecord> =
+        crate::storage::load_json(&data_dir.join("devices.json"))?;
     let device = devices
         .iter()
         .find(|d| d.device_id.eq_ignore_ascii_case(&tasks[task_idx].device_id))
@@ -38,9 +39,8 @@ async fn execute_image_loop_push(data_dir: PathBuf, task_id: i64) -> anyhow::Res
 
     // Get API key from api_keys.json
     let api_key: String = {
-        let api_keys: Vec<crate::models::ApiKeyRecord> = crate::storage::load_json(
-            &data_dir.join("api_keys.json"),
-        )?;
+        let api_keys: Vec<crate::models::ApiKeyRecord> =
+            crate::storage::load_json(&data_dir.join("api_keys.json"))?;
         api_keys
             .iter()
             .find(|k| k.id == device.api_key_id)
@@ -86,7 +86,8 @@ async fn execute_image_loop_push(data_dir: PathBuf, task_id: i64) -> anyhow::Res
     // 推送图片 (async call)
     let page_id = tasks[task_idx].page_id;
     let device_id = tasks[task_idx].device_id.clone();
-    let push_result = crate::api::client::push_image(&api_key, &device_id, image_bytes.clone(), page_id).await;
+    let push_result =
+        crate::api::client::push_image(&api_key, &device_id, image_bytes.clone(), page_id).await;
 
     if let Err(e) = push_result {
         tasks[task_idx].status = "error".to_string();
@@ -115,8 +116,7 @@ async fn execute_image_loop_push(data_dir: PathBuf, task_id: i64) -> anyhow::Res
 /// Execute a single stock push for a running loop task
 async fn execute_stock_push(data_dir: PathBuf, task_id: i64) -> anyhow::Result<()> {
     let task_opt: Option<StockPushTaskRecord> = load_json(&data_dir.join("stock_push_task.json"))?;
-    let task = task_opt
-        .ok_or_else(|| anyhow::anyhow!("股票推送任务 {task_id} 未找到"))?;
+    let task = task_opt.ok_or_else(|| anyhow::anyhow!("股票推送任务 {task_id} 未找到"))?;
 
     if task.status != "running" {
         return Ok(()); // Task stopped, exit gracefully
@@ -146,11 +146,19 @@ async fn execute_stock_push(data_dir: PathBuf, task_id: i64) -> anyhow::Result<(
     }
 
     let codes = watchlist.iter().map(|r| r.code.clone()).collect::<Vec<_>>();
-    let quotes = crate::stock_quote::fetch_eastmoney_quotes(&codes).await?;
+    let quotes = crate::stock_quote::fetch_stock_quotes(&codes).await?;
+    crate::stock_quote::ensure_has_valid_stock_quote(&quotes)?;
     let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
 
     // Push text
-    crate::api::client::push_text(&api_key, &task.device_id, &text, Some(20), Some(task.page_id)).await?;
+    crate::api::client::push_text(
+        &api_key,
+        &task.device_id,
+        &text,
+        Some(20),
+        Some(task.page_id),
+    )
+    .await?;
 
     // Update last_push_at
     let mut task = task;
@@ -162,7 +170,9 @@ async fn execute_stock_push(data_dir: PathBuf, task_id: i64) -> anyhow::Result<(
 }
 
 /// Standalone image folder scanner
-fn scan_image_folder_standalone(folder_path: &str) -> anyhow::Result<crate::models::ImageFolderScanResult> {
+fn scan_image_folder_standalone(
+    folder_path: &str,
+) -> anyhow::Result<crate::models::ImageFolderScanResult> {
     let path = std::path::Path::new(folder_path);
     if !path.exists() {
         anyhow::bail!("文件夹不存在");
@@ -177,11 +187,7 @@ fn scan_image_folder_standalone(folder_path: &str) -> anyhow::Result<crate::mode
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         let file_name = entry.file_name().to_string_lossy().to_string();
-        let ext = file_name
-            .rsplit('.')
-            .next()
-            .unwrap_or("")
-            .to_lowercase();
+        let ext = file_name.rsplit('.').next().unwrap_or("").to_lowercase();
         if image_extensions.contains(&ext.as_str()) {
             image_files.push(file_name);
         }
@@ -233,10 +239,9 @@ fn check_duration_condition_standalone(task: &crate::models::ImageLoopTaskRecord
                 let hour: u32 = parts[0].parse().unwrap_or(0);
                 let minute: u32 = parts[1].parse().unwrap_or(0);
 
-                let end_datetime = now
-                    .date_naive()
-                    .and_hms_opt(hour, minute, 0)
-                    .map(|dt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc));
+                let end_datetime = now.date_naive().and_hms_opt(hour, minute, 0).map(|dt| {
+                    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc)
+                });
 
                 if let Some(end) = end_datetime {
                     if now >= end {
@@ -290,14 +295,14 @@ fn apply_exif_orientation(img: image::DynamicImage, path: &std::path::Path) -> i
         _ => 1,
     };
     match orientation_value {
-        1 => img,                                   // Normal
-        2 => img.fliph(),                           // Flip horizontal
-        3 => img.rotate180(),                       // Rotate 180
-        4 => img.flipv(),                           // Flip vertical
-        5 => img.rotate90().fliph(),                // Rotate 90 + flip horizontal
-        6 => img.rotate90(),                        // Rotate 90 (portrait)
-        7 => img.rotate270().fliph(),               // Rotate 270 + flip horizontal
-        8 => img.rotate270(),                       // Rotate 270
+        1 => img,                     // Normal
+        2 => img.fliph(),             // Flip horizontal
+        3 => img.rotate180(),         // Rotate 180
+        4 => img.flipv(),             // Flip vertical
+        5 => img.rotate90().fliph(),  // Rotate 90 + flip horizontal
+        6 => img.rotate90(),          // Rotate 90 (portrait)
+        7 => img.rotate270().fliph(), // Rotate 270 + flip horizontal
+        8 => img.rotate270(),         // Rotate 270
         _ => img,
     }
 }
@@ -574,6 +579,48 @@ impl AppState {
         })
     }
 
+    fn ensure_no_running_loop_task_on_page(
+        &self,
+        device_id: &str,
+        page_id: u32,
+        current_kind: &str,
+        current_id: Option<i64>,
+    ) -> anyhow::Result<()> {
+        let image_tasks = self.load_image_loop_tasks()?;
+        let image_conflict = image_tasks.iter().any(|task| {
+            task.status == "running"
+                && task.device_id.eq_ignore_ascii_case(device_id)
+                && task.page_id == page_id
+                && !(current_kind == "image" && current_id == Some(task.id))
+        });
+        if image_conflict {
+            anyhow::bail!("第 {page_id} 页已有循环任务正在运行，请先停止");
+        }
+
+        if let Some(task) = self.load_stock_push_task()? {
+            let stock_conflict = task.status == "running"
+                && task.device_id.eq_ignore_ascii_case(device_id)
+                && task.page_id == page_id
+                && current_kind != "stock";
+            if stock_conflict {
+                anyhow::bail!("第 {page_id} 页已有循环任务正在运行，请先停止");
+            }
+        }
+
+        let plugin_tasks = self.load_plugin_loop_tasks()?;
+        let plugin_conflict = plugin_tasks.iter().any(|task| {
+            task.status == "running"
+                && task.device_id.eq_ignore_ascii_case(device_id)
+                && task.page_id == page_id
+                && !(current_kind == "plugin" && current_id == Some(task.id))
+        });
+        if plugin_conflict {
+            anyhow::bail!("第 {page_id} 页已有循环任务正在运行，请先停止");
+        }
+
+        Ok(())
+    }
+
     pub fn list_api_keys(&self) -> anyhow::Result<Vec<ApiKeyRecord>> {
         load_json(&self.data_dir.join("api_keys.json"))
     }
@@ -726,7 +773,10 @@ impl AppState {
         save_json(&self.data_dir.join("custom_plugins.json"), &plugins)
     }
 
-    pub fn save_custom_plugin(&self, input: CustomPluginInput) -> anyhow::Result<CustomPluginRecord> {
+    pub fn save_custom_plugin(
+        &self,
+        input: CustomPluginInput,
+    ) -> anyhow::Result<CustomPluginRecord> {
         let mut plugins = self.load_custom_plugins()?;
         let now = chrono::Utc::now().to_rfc3339();
         let name = input.name.trim().to_string();
@@ -785,6 +835,7 @@ impl AppState {
         &self,
         plugin_kind: &str,
         plugin_id: &str,
+        config: std::collections::HashMap<String, String>,
     ) -> anyhow::Result<PluginRunResult> {
         let plugin = match plugin_kind {
             "custom" => self.find_custom_plugin(plugin_id)?,
@@ -803,7 +854,7 @@ impl AppState {
             other => anyhow::bail!("未知插件类型: {other}"),
         };
 
-        let raw = crate::plugin_runtime::run_plugin_code(&plugin.code).await?;
+        let raw = crate::plugin_runtime::run_plugin_code(&plugin.code, config).await?;
         let output = crate::plugin_output::parse_plugin_output(raw)?;
         Self::plugin_output_to_run_result(output)
     }
@@ -814,6 +865,7 @@ impl AppState {
         plugin_id: &str,
         device_id: &str,
         page_id: u32,
+        config: std::collections::HashMap<String, String>,
     ) -> anyhow::Result<()> {
         let plugin = match plugin_kind {
             "custom" => self.find_custom_plugin(plugin_id)?,
@@ -832,7 +884,7 @@ impl AppState {
             other => anyhow::bail!("未知插件类型: {other}"),
         };
 
-        let raw = crate::plugin_runtime::run_plugin_code(&plugin.code).await?;
+        let raw = crate::plugin_runtime::run_plugin_code(&plugin.code, config).await?;
         let output = crate::plugin_output::parse_plugin_output(raw)?;
 
         self.push_plugin_output(
@@ -859,10 +911,8 @@ impl AppState {
                 metadata: text.metadata,
             }),
             crate::plugin_output::PluginOutput::TextImage(text_image) => {
-                let rendered_png = crate::text_image::render_text_to_png(
-                    &text_image.text,
-                    &text_image.style,
-                )?;
+                let rendered_png =
+                    crate::text_image::render_text_to_png(&text_image.text, &text_image.style)?;
 
                 Ok(PluginRunResult {
                     output_type: "textImage".to_string(),
@@ -879,7 +929,8 @@ impl AppState {
                 output_type: "image".to_string(),
                 title: image.title,
                 text: None,
-                image_data_url: Some(image.image_data_url),
+                image_data_url: (!image.image_data_url.trim().is_empty())
+                    .then_some(image.image_data_url),
                 preview_png_base64: None,
                 metadata: image.metadata,
             }),
@@ -933,18 +984,13 @@ impl AppState {
                 self.save_page_cache_record(record)?;
             }
             crate::plugin_output::PluginOutput::TextImage(text_image) => {
-                let rendered_png = crate::text_image::render_text_to_png(
-                    &text_image.text,
-                    &text_image.style,
-                )?;
+                let rendered_png =
+                    crate::text_image::render_text_to_png(&text_image.text, &text_image.style)?;
                 crate::api::client::push_image(&api_key, device_id, rendered_png.clone(), page_id)
                     .await?;
 
-                let thumbnail_filename = format!(
-                    "thumb_{}_{}.png",
-                    device_id.replace(':', "_"),
-                    page_id
-                );
+                let thumbnail_filename =
+                    format!("thumb_{}_{}.png", device_id.replace(':', "_"), page_id);
                 let thumbnail = self.save_image_thumbnail(&rendered_png, &thumbnail_filename)?;
 
                 let record = PageCacheRecord {
@@ -966,15 +1012,12 @@ impl AppState {
                 self.save_page_cache_record(record)?;
             }
             crate::plugin_output::PluginOutput::Image(image) => {
-                let png_bytes = Self::decode_plugin_image_to_png(&image.image_data_url)?;
+                let png_bytes = Self::resolve_plugin_image_to_png(&image).await?;
                 crate::api::client::push_image(&api_key, device_id, png_bytes.clone(), page_id)
                     .await?;
 
-                let thumbnail_filename = format!(
-                    "thumb_{}_{}.png",
-                    device_id.replace(':', "_"),
-                    page_id
-                );
+                let thumbnail_filename =
+                    format!("thumb_{}_{}.png", device_id.replace(':', "_"), page_id);
                 let thumbnail = self.save_image_thumbnail(&png_bytes, &thumbnail_filename)?;
 
                 let record = PageCacheRecord {
@@ -998,6 +1041,47 @@ impl AppState {
         }
 
         Ok(())
+    }
+
+    async fn resolve_plugin_image_to_png(
+        image: &crate::plugin_output::ImagePluginOutput,
+    ) -> anyhow::Result<Vec<u8>> {
+        if !image.image_data_url.trim().is_empty() {
+            return Self::decode_plugin_image_to_png(&image.image_data_url);
+        }
+
+        let image_url = image
+            .image_url
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("图片输出必须提供 imageDataUrl 或 imageUrl"))?
+            .trim();
+        let image_bytes = Self::download_plugin_image(image_url).await?;
+        Self::image_bytes_to_png(&image_bytes)
+    }
+
+    async fn download_plugin_image(url: &str) -> anyhow::Result<Vec<u8>> {
+        let parsed = reqwest::Url::parse(url).map_err(|error| anyhow::anyhow!("imageUrl 无效: {error}"))?;
+        if !matches!(parsed.scheme(), "http" | "https") {
+            anyhow::bail!("imageUrl 只支持 http 或 https");
+        }
+
+        let response = reqwest::Client::builder()
+            .timeout(Duration::from_secs(20))
+            .build()?
+            .get(parsed)
+            .send()
+            .await?;
+        let status = response.status();
+        if !status.is_success() {
+            anyhow::bail!("下载图片失败: {status}");
+        }
+
+        let bytes = response.bytes().await?;
+        if bytes.len() > 10 * 1024 * 1024 {
+            anyhow::bail!("图片超过 10MB 限制");
+        }
+
+        Ok(bytes.to_vec())
     }
 
     fn plugin_cache_metadata(
@@ -1032,7 +1116,11 @@ impl AppState {
         let image_bytes = base64::engine::general_purpose::STANDARD
             .decode(payload)
             .map_err(|error| anyhow::anyhow!("图片解码失败: {error}"))?;
-        let image = image::load_from_memory(&image_bytes)
+        Self::image_bytes_to_png(&image_bytes)
+    }
+
+    fn image_bytes_to_png(image_bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
+        let image = image::load_from_memory(image_bytes)
             .map_err(|error| anyhow::anyhow!("无法读取图片: {error}"))?;
         let resized = image.resize_to_fill(400, 300, image::imageops::FilterType::Lanczos3);
         let mut cursor = std::io::Cursor::new(Vec::new());
@@ -1085,6 +1173,7 @@ impl AppState {
             error_message: None,
             created_at: now.clone(),
             updated_at: now,
+            config: input.config,
         };
 
         tasks.push(record.clone());
@@ -1098,11 +1187,21 @@ impl AppState {
         input: PluginLoopTaskInput,
     ) -> anyhow::Result<PluginLoopTaskRecord> {
         let mut tasks = self.load_plugin_loop_tasks()?;
-        let task = tasks
-            .iter_mut()
-            .find(|task| task.id == task_id)
+        let task_idx = tasks
+            .iter()
+            .position(|task| task.id == task_id)
             .ok_or_else(|| anyhow::anyhow!("任务 {task_id} 未找到"))?;
 
+        if tasks[task_idx].status == "running" {
+            self.ensure_no_running_loop_task_on_page(
+                &input.device_id,
+                input.page_id,
+                "plugin",
+                Some(task_id),
+            )?;
+        }
+
+        let task = &mut tasks[task_idx];
         task.plugin_kind = input.plugin_kind;
         task.plugin_id = input.plugin_id;
         task.name = input.name.trim().to_string();
@@ -1127,11 +1226,23 @@ impl AppState {
 
     pub fn start_plugin_loop_task(&self, task_id: i64) -> anyhow::Result<PluginLoopTaskRecord> {
         let mut tasks = self.load_plugin_loop_tasks()?;
-        let task = tasks
-            .iter_mut()
-            .find(|task| task.id == task_id)
+        let task_idx = tasks
+            .iter()
+            .position(|task| task.id == task_id)
             .ok_or_else(|| anyhow::anyhow!("插件循环任务 {task_id} 不存在"))?;
 
+        if tasks[task_idx].status == "running" {
+            return Ok(tasks[task_idx].clone());
+        }
+
+        self.ensure_no_running_loop_task_on_page(
+            &tasks[task_idx].device_id,
+            tasks[task_idx].page_id,
+            "plugin",
+            Some(task_id),
+        )?;
+
+        let task = &mut tasks[task_idx];
         task.status = "running".to_string();
         task.error_message = None;
         task.updated_at = chrono::Utc::now().to_rfc3339();
@@ -1151,10 +1262,7 @@ impl AppState {
             }
 
             loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(
-                    interval_seconds as u64,
-                ))
-                .await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(interval_seconds as u64)).await;
 
                 let state = crate::state::AppState {
                     data_dir: data_dir.clone(),
@@ -1311,9 +1419,12 @@ impl AppState {
         };
 
         // 先找旧记录用于删除缩略图
-        let old = cache.iter().find(|p|
-            p.device_id.eq_ignore_ascii_case(&record.device_id) && p.page_id == record.page_id
-        ).cloned();
+        let old = cache
+            .iter()
+            .find(|p| {
+                p.device_id.eq_ignore_ascii_case(&record.device_id) && p.page_id == record.page_id
+            })
+            .cloned();
 
         // 如果有旧的缩略图文件，删除它
         if let Some(old_rec) = old {
@@ -1328,7 +1439,9 @@ impl AppState {
         }
 
         // 移除同设备同页面的旧记录
-        cache.retain(|p| !p.device_id.eq_ignore_ascii_case(&record.device_id) || p.page_id != record.page_id);
+        cache.retain(|p| {
+            !p.device_id.eq_ignore_ascii_case(&record.device_id) || p.page_id != record.page_id
+        });
         cache.push(record);
         save_json(&path, &cache)?;
         Ok(())
@@ -1495,7 +1608,12 @@ impl AppState {
         Ok(updated)
     }
 
-    pub async fn push_todo_to_device(&self, local_id: &str, device_id: &str, page_id: Option<u32>) -> anyhow::Result<()> {
+    pub async fn push_todo_to_device(
+        &self,
+        local_id: &str,
+        device_id: &str,
+        page_id: Option<u32>,
+    ) -> anyhow::Result<()> {
         let todos = self.load_todos()?;
         let todo = todos
             .iter()
@@ -1525,7 +1643,8 @@ impl AppState {
         }
         let body = body_parts.join("\n");
 
-        crate::api::client::push_structured_text(&api_key, device_id, &todo.title, &body, page_id).await
+        crate::api::client::push_structured_text(&api_key, device_id, &todo.title, &body, page_id)
+            .await
     }
 
     pub fn create_text_template(
@@ -1610,7 +1729,9 @@ impl AppState {
                 page_id: pid,
                 content_type: "text".to_string(),
                 thumbnail: Some(preview),
-                metadata: Some(serde_json::json!({"fontSize": font_size.unwrap_or(20)}).to_string()),
+                metadata: Some(
+                    serde_json::json!({"fontSize": font_size.unwrap_or(20)}).to_string(),
+                ),
                 pushed_at: now,
             };
             self.save_page_cache_record(record)?;
@@ -1629,10 +1750,12 @@ impl AppState {
             .iter()
             .map(|record| record.code.clone())
             .collect::<Vec<_>>();
-        let quotes = crate::stock_quote::fetch_eastmoney_quotes(&codes).await?;
+        let quotes = crate::stock_quote::fetch_stock_quotes(&codes).await?;
+        crate::stock_quote::ensure_has_valid_stock_quote(&quotes)?;
         let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
 
-        self.push_text(&text, Some(20), device_id, Some(page_id)).await
+        self.push_text(&text, Some(20), device_id, Some(page_id))
+            .await
     }
 
     pub async fn fetch_stock_quotes(&self) -> anyhow::Result<Vec<crate::stock_quote::StockQuote>> {
@@ -1645,7 +1768,7 @@ impl AppState {
             .iter()
             .map(|record| record.code.clone())
             .collect::<Vec<_>>();
-        crate::stock_quote::fetch_eastmoney_quotes(&codes).await
+        crate::stock_quote::fetch_stock_quotes(&codes).await
     }
 
     // ==================== Stock Push Task Methods ====================
@@ -1708,14 +1831,16 @@ impl AppState {
             .load_stock_push_task()?
             .ok_or_else(|| anyhow::anyhow!("请先创建股票推送任务"))?;
 
+        if task.status == "running" {
+            return Ok(task);
+        }
+
+        self.ensure_no_running_loop_task_on_page(&task.device_id, task.page_id, "stock", None)?;
+
         // Check if watchlist has stocks
         let watchlist = self.load_stock_watchlist()?;
         if watchlist.is_empty() {
             anyhow::bail!("股票列表为空，请先添加股票代码");
-        }
-
-        if task.status == "running" {
-            return Ok(task);
         }
 
         task.status = "running".to_string();
@@ -1743,12 +1868,11 @@ impl AppState {
 
                 // Check if task is still running
                 let still_running = {
-                    let task_opt: Option<StockPushTaskRecord> = match load_json(
-                        &data_dir.join("stock_push_task.json")
-                    ) {
-                        Ok(t) => t,
-                        Err(_) => break,
-                    };
+                    let task_opt: Option<StockPushTaskRecord> =
+                        match load_json(&data_dir.join("stock_push_task.json")) {
+                            Ok(t) => t,
+                            Err(_) => break,
+                        };
                     task_opt.map(|t| t.status == "running").unwrap_or(false)
                 };
 
@@ -1829,7 +1953,9 @@ impl AppState {
                 page_id: pid,
                 content_type: "structured_text".to_string(),
                 thumbnail: Some(thumbnail),
-                metadata: Some(serde_json::json!({"title": title, "bodyPreview": body_preview}).to_string()),
+                metadata: Some(
+                    serde_json::json!({"title": title, "bodyPreview": body_preview}).to_string(),
+                ),
                 pushed_at: now,
             };
             self.save_page_cache_record(record)?;
@@ -2105,10 +2231,7 @@ impl AppState {
 
         // 推送成功后写入缓存
         let now = chrono::Utc::now().to_rfc3339();
-        let thumbnail_filename = format!("thumb_{}_{}.png",
-            device_id.replace(':', "_"),
-            page_id
-        );
+        let thumbnail_filename = format!("thumb_{}_{}.png", device_id.replace(':', "_"), page_id);
         let thumbnail = self.save_image_thumbnail(&image_bytes, &thumbnail_filename)?;
 
         let record = PageCacheRecord {
@@ -2132,8 +2255,8 @@ impl AppState {
             .find(|t| t.id == template_id)
             .ok_or_else(|| anyhow::anyhow!("图片模板 {template_id} 未找到"))?;
 
-        let img = image::open(&template.file_path)
-            .map_err(|e| anyhow::anyhow!("无法打开图片: {e}"))?;
+        let img =
+            image::open(&template.file_path).map_err(|e| anyhow::anyhow!("无法打开图片: {e}"))?;
 
         // 缩略图与原图尺寸相同 (400x300)，避免显示模糊
         let thumbnail = img.resize(400, 300, image::imageops::FilterType::Lanczos3);
@@ -2194,10 +2317,7 @@ impl AppState {
 
         // 推送成功后写入缓存
         let now = chrono::Utc::now().to_rfc3339();
-        let thumbnail_filename = format!("thumb_{}_{}.png",
-            device_id.replace(':', "_"),
-            page_id
-        );
+        let thumbnail_filename = format!("thumb_{}_{}.png", device_id.replace(':', "_"), page_id);
         let thumbnail = self.save_image_thumbnail(&image_bytes, &thumbnail_filename)?;
 
         let record = PageCacheRecord {
@@ -2213,7 +2333,10 @@ impl AppState {
         Ok(())
     }
 
-    pub fn scan_image_folder(&self, folder_path: &str) -> anyhow::Result<crate::models::ImageFolderScanResult> {
+    pub fn scan_image_folder(
+        &self,
+        folder_path: &str,
+    ) -> anyhow::Result<crate::models::ImageFolderScanResult> {
         let path = std::path::Path::new(folder_path);
         if !path.exists() || !path.is_dir() {
             anyhow::bail!("文件夹不存在或不是有效目录");
@@ -2225,7 +2348,8 @@ impl AppState {
         for entry in std::fs::read_dir(path)? {
             let entry = entry?;
             let file_name = entry.file_name().to_string_lossy().to_string();
-            let ext = entry.path()
+            let ext = entry
+                .path()
                 .extension()
                 .and_then(|e| e.to_str())
                 .map(|e| e.to_lowercase());
@@ -2260,7 +2384,10 @@ impl AppState {
         crate::storage::load_json(&path)
     }
 
-    fn save_image_loop_tasks(&self, tasks: &Vec<crate::models::ImageLoopTaskRecord>) -> anyhow::Result<()> {
+    fn save_image_loop_tasks(
+        &self,
+        tasks: &Vec<crate::models::ImageLoopTaskRecord>,
+    ) -> anyhow::Result<()> {
         let path = self.data_dir.join("image_loop_tasks.json");
         crate::storage::save_json(&path, tasks)
     }
@@ -2328,13 +2455,23 @@ impl AppState {
         input: crate::models::ImageLoopTaskInput,
     ) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
         let mut tasks = self.load_image_loop_tasks()?;
-        let task = tasks
-            .iter_mut()
-            .find(|t| t.id == task_id)
+        let task_idx = tasks
+            .iter()
+            .position(|t| t.id == task_id)
             .ok_or_else(|| anyhow::anyhow!("任务 {task_id} 未找到"))?;
 
         let scan_result = self.scan_image_folder(&input.folder_path)?;
 
+        if tasks[task_idx].status == "running" {
+            self.ensure_no_running_loop_task_on_page(
+                &input.device_id,
+                input.page_id,
+                "image",
+                Some(task_id),
+            )?;
+        }
+
+        let task = &mut tasks[task_idx];
         task.name = input.name;
         task.folder_path = input.folder_path;
         task.device_id = input.device_id;
@@ -2358,22 +2495,33 @@ impl AppState {
         Ok(())
     }
 
-    pub fn start_image_loop_task(&self, task_id: i64) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+    pub fn start_image_loop_task(
+        &self,
+        task_id: i64,
+    ) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
         let mut tasks = self.load_image_loop_tasks()?;
-        let task = tasks
-            .iter_mut()
-            .find(|t| t.id == task_id)
+        let task_idx = tasks
+            .iter()
+            .position(|t| t.id == task_id)
             .ok_or_else(|| anyhow::anyhow!("任务 {task_id} 未找到"))?;
 
-        if task.total_images == 0 {
+        if tasks[task_idx].total_images == 0 {
             anyhow::bail!("文件夹中没有图片，无法启动");
         }
 
         // If task is already running, no need to spawn again
-        if task.status == "running" {
-            return Ok(task.clone());
+        if tasks[task_idx].status == "running" {
+            return Ok(tasks[task_idx].clone());
         }
 
+        self.ensure_no_running_loop_task_on_page(
+            &tasks[task_idx].device_id,
+            tasks[task_idx].page_id,
+            "image",
+            Some(task_id),
+        )?;
+
+        let task = &mut tasks[task_idx];
         task.status = "running".to_string();
         task.current_index = 0;
         task.started_at = Some(chrono::Utc::now().to_rfc3339());
@@ -2400,13 +2548,16 @@ impl AppState {
 
                 // Check if task is still running before executing
                 let still_running = {
-                    let tasks: Vec<crate::models::ImageLoopTaskRecord> = match crate::storage::load_json(
-                        &data_dir.join("image_loop_tasks.json")
-                    ) {
-                        Ok(t) => t,
-                        Err(_) => break,
-                    };
-                    tasks.iter().find(|t| t.id == task_id).map(|t| t.status == "running").unwrap_or(false)
+                    let tasks: Vec<crate::models::ImageLoopTaskRecord> =
+                        match crate::storage::load_json(&data_dir.join("image_loop_tasks.json")) {
+                            Ok(t) => t,
+                            Err(_) => break,
+                        };
+                    tasks
+                        .iter()
+                        .find(|t| t.id == task_id)
+                        .map(|t| t.status == "running")
+                        .unwrap_or(false)
                 };
 
                 if !still_running {
@@ -2434,7 +2585,10 @@ impl AppState {
         Ok(updated)
     }
 
-    pub fn stop_image_loop_task(&self, task_id: i64) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+    pub fn stop_image_loop_task(
+        &self,
+        task_id: i64,
+    ) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
         let mut tasks = self.load_image_loop_tasks()?;
         let task = tasks
             .iter_mut()
@@ -2450,7 +2604,10 @@ impl AppState {
         Ok(updated)
     }
 
-    pub async fn push_folder_image(&self, task_id: i64) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
+    pub async fn push_folder_image(
+        &self,
+        task_id: i64,
+    ) -> anyhow::Result<crate::models::ImageLoopTaskRecord> {
         let mut tasks = self.load_image_loop_tasks()?;
         let task_idx = tasks
             .iter()
@@ -2462,9 +2619,8 @@ impl AppState {
         }
 
         // 获取设备信息
-        let devices: Vec<crate::models::DeviceRecord> = crate::storage::load_json(
-            &self.data_dir.join("devices.json"),
-        )?;
+        let devices: Vec<crate::models::DeviceRecord> =
+            crate::storage::load_json(&self.data_dir.join("devices.json"))?;
         let device = devices
             .iter()
             .find(|d| d.device_id.eq_ignore_ascii_case(&tasks[task_idx].device_id))
@@ -2504,7 +2660,9 @@ impl AppState {
         // 推送图片
         let page_id = tasks[task_idx].page_id;
         let device_id = tasks[task_idx].device_id.clone();
-        if let Err(e) = crate::api::client::push_image(&api_key, &device_id, image_bytes.clone(), page_id).await {
+        if let Err(e) =
+            crate::api::client::push_image(&api_key, &device_id, image_bytes.clone(), page_id).await
+        {
             tasks[task_idx].status = "error".to_string();
             tasks[task_idx].error_message = Some(e.to_string());
             tasks[task_idx].updated_at = chrono::Utc::now().to_rfc3339();
@@ -2513,7 +2671,8 @@ impl AppState {
         }
 
         // 更新索引
-        tasks[task_idx].current_index = (tasks[task_idx].current_index + 1) % scan_result.total_images;
+        tasks[task_idx].current_index =
+            (tasks[task_idx].current_index + 1) % scan_result.total_images;
         tasks[task_idx].last_push_at = Some(chrono::Utc::now().to_rfc3339());
         tasks[task_idx].updated_at = chrono::Utc::now().to_rfc3339();
 
@@ -2528,7 +2687,10 @@ impl AppState {
         Ok(updated)
     }
 
-    pub fn check_duration_condition(&self, task: &crate::models::ImageLoopTaskRecord) -> anyhow::Result<bool> {
+    pub fn check_duration_condition(
+        &self,
+        task: &crate::models::ImageLoopTaskRecord,
+    ) -> anyhow::Result<bool> {
         if task.duration_type == "none" {
             return Ok(false);
         }
@@ -2538,8 +2700,7 @@ impl AppState {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("任务缺少启动时间"))?;
 
-        let started = chrono::DateTime::parse_from_rfc3339(started_at)?
-            .with_timezone(&chrono::Utc);
+        let started = chrono::DateTime::parse_from_rfc3339(started_at)?.with_timezone(&chrono::Utc);
         let now = chrono::Utc::now();
 
         if task.duration_type == "until_time" {
@@ -2549,10 +2710,9 @@ impl AppState {
                     let hour: u32 = parts[0].parse().unwrap_or(0);
                     let minute: u32 = parts[1].parse().unwrap_or(0);
 
-                    let end_datetime = now
-                        .date_naive()
-                        .and_hms_opt(hour, minute, 0)
-                        .map(|dt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc));
+                    let end_datetime = now.date_naive().and_hms_opt(hour, minute, 0).map(|dt| {
+                        chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc)
+                    });
 
                     if let Some(end) = end_datetime {
                         if now >= end {
@@ -2579,6 +2739,9 @@ mod tests {
     use super::*;
     use crate::api::client::ApiTodo;
     use crate::storage::save_json;
+    use image::{ImageBuffer, ImageFormat, Rgba};
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
 
     fn make_local_todo(local_id: &str, id: Option<i64>, status: i32, dirty: bool) -> TodoRecord {
         TodoRecord {
@@ -2628,6 +2791,51 @@ mod tests {
         AppState {
             data_dir: dir.path().to_path_buf(),
         }
+    }
+
+    fn tiny_png_bytes() -> Vec<u8> {
+        let image = ImageBuffer::from_pixel(2, 2, Rgba([255, 0, 0, 255]));
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(image)
+            .write_to(&mut cursor, ImageFormat::Png)
+            .unwrap();
+        cursor.into_inner()
+    }
+
+    fn serve_image_once(bytes: Vec<u8>) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request_buffer = [0; 1024];
+            let _ = stream.read(&mut request_buffer);
+            let response_header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                bytes.len()
+            );
+            stream.write_all(response_header.as_bytes()).unwrap();
+            stream.write_all(&bytes).unwrap();
+        });
+
+        url
+    }
+
+    #[tokio::test]
+    async fn resolves_plugin_image_url_to_png() {
+        let url = serve_image_once(tiny_png_bytes());
+        let output = crate::plugin_output::ImagePluginOutput {
+            image_data_url: String::new(),
+            image_url: Some(url),
+            title: None,
+            metadata: None,
+        };
+
+        let png = AppState::resolve_plugin_image_to_png(&output).await.unwrap();
+
+        assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+        let decoded = image::load_from_memory(&png).unwrap();
+        assert_eq!(decoded.dimensions(), (400, 300));
     }
 
     #[test]
@@ -3072,7 +3280,11 @@ mod tests {
         )
         .unwrap();
 
-        save_json(&dir.path().join("devices.json"), &vec![] as &Vec<DeviceRecord>).unwrap();
+        save_json(
+            &dir.path().join("devices.json"),
+            &vec![] as &Vec<DeviceRecord>,
+        )
+        .unwrap();
 
         // 删除无设备关联的 API Key 应成功
         state.remove_api_key(1).unwrap();
@@ -3106,11 +3318,7 @@ mod tests {
         todo2.device_id = Some("BB:BB:BB:BB:BB:BB".into()); // 其他设备
         let todo3 = make_local_todo("local-c", None, 0, true); // 无设备
 
-        save_json(
-            &dir.path().join("todos.json"),
-            &vec![todo1, todo2, todo3],
-        )
-        .unwrap();
+        save_json(&dir.path().join("todos.json"), &vec![todo1, todo2, todo3]).unwrap();
 
         // 删除设备
         state.remove_device_cache("AA:BB:CC:DD:EE:FF").unwrap();
@@ -3122,7 +3330,9 @@ mod tests {
         // 验证关联该设备的 todo 已删除，其他 todo 保留
         let todos = state.load_todos().unwrap();
         assert_eq!(todos.len(), 2);
-        assert!(todos.iter().all(|t| t.device_id != Some("AA:BB:CC:DD:EE:FF".into())));
+        assert!(todos
+            .iter()
+            .all(|t| t.device_id != Some("AA:BB:CC:DD:EE:FF".into())));
     }
 
     #[test]
@@ -3135,7 +3345,9 @@ mod tests {
         std::fs::write(dir.path().join("photo2.png"), vec![0u8; 100]).unwrap();
         std::fs::write(dir.path().join("readme.txt"), vec![0u8; 50]).unwrap();
 
-        let result = state.scan_image_folder(dir.path().to_str().unwrap()).unwrap();
+        let result = state
+            .scan_image_folder(dir.path().to_str().unwrap())
+            .unwrap();
 
         assert_eq!(result.total_images, 2);
         assert_eq!(result.image_files, vec!["photo1.jpg", "photo2.png"]);
@@ -3150,7 +3362,9 @@ mod tests {
         // 只创建非图片文件
         std::fs::write(dir.path().join("readme.txt"), vec![0u8; 50]).unwrap();
 
-        let result = state.scan_image_folder(dir.path().to_str().unwrap()).unwrap();
+        let result = state
+            .scan_image_folder(dir.path().to_str().unwrap())
+            .unwrap();
 
         assert_eq!(result.total_images, 0);
         assert!(result.warning.is_some());
@@ -3204,31 +3418,87 @@ mod tests {
 
         std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
 
-        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
-            name: "原名".into(),
-            folder_path: dir.path().to_str().unwrap().into(),
-            device_id: "AA:BB:CC".into(),
-            page_id: 1,
-            interval_seconds: 30,
-            duration_type: "none".into(),
-            end_time: None,
-            duration_minutes: None,
-        }).unwrap();
+        let created = state
+            .create_image_loop_task(crate::models::ImageLoopTaskInput {
+                name: "原名".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 1,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
 
-        let updated = state.update_image_loop_task(created.id, crate::models::ImageLoopTaskInput {
-            name: "新名".into(),
-            folder_path: dir.path().to_str().unwrap().into(),
-            device_id: "AA:BB:CC".into(),
-            page_id: 2,
-            interval_seconds: 60,
-            duration_type: "for_duration".into(),
-            end_time: None,
-            duration_minutes: Some(30),
-        }).unwrap();
+        let updated = state
+            .update_image_loop_task(
+                created.id,
+                crate::models::ImageLoopTaskInput {
+                    name: "新名".into(),
+                    folder_path: dir.path().to_str().unwrap().into(),
+                    device_id: "AA:BB:CC".into(),
+                    page_id: 2,
+                    interval_seconds: 60,
+                    duration_type: "for_duration".into(),
+                    end_time: None,
+                    duration_minutes: Some(30),
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.name, "新名");
         assert_eq!(updated.page_id, 2);
         assert_eq!(updated.interval_seconds, 60);
+    }
+
+    #[test]
+    fn update_running_image_loop_task_rejects_page_used_by_running_stock_task() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
+
+        let mut stock_task = state.create_stock_push_task("AA:BB:CC", 2, 60).unwrap();
+        stock_task.status = "running".into();
+        state.save_stock_push_task(&stock_task).unwrap();
+
+        let mut image_task = state
+            .create_image_loop_task(crate::models::ImageLoopTaskInput {
+                name: "相册".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 1,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
+        image_task.status = "running".into();
+        state
+            .save_image_loop_tasks(&vec![image_task.clone()])
+            .unwrap();
+
+        let result = state.update_image_loop_task(
+            image_task.id,
+            crate::models::ImageLoopTaskInput {
+                name: "相册".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 2,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            },
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("第 2 页已有循环任务"));
     }
 
     #[test]
@@ -3238,16 +3508,18 @@ mod tests {
 
         std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
 
-        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
-            name: "测试".into(),
-            folder_path: dir.path().to_str().unwrap().into(),
-            device_id: "AA:BB:CC".into(),
-            page_id: 1,
-            interval_seconds: 30,
-            duration_type: "none".into(),
-            end_time: None,
-            duration_minutes: None,
-        }).unwrap();
+        let created = state
+            .create_image_loop_task(crate::models::ImageLoopTaskInput {
+                name: "测试".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 1,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
 
         state.delete_image_loop_task(created.id).unwrap();
 
@@ -3303,12 +3575,12 @@ mod tests {
                 id: None,
                 name: "文本插件".into(),
                 description: "返回文本".into(),
-                code: "return { type: 'text', text: 'hello' };".into(),
+                code: "(async function() { return { type: 'text', text: 'hello' }; })()".into(),
             })
             .unwrap();
 
         let result = state
-            .run_plugin_once("custom", &created.id.to_string())
+            .run_plugin_once("custom", &created.id.to_string(), std::collections::HashMap::new())
             .await
             .unwrap();
 
@@ -3326,12 +3598,13 @@ mod tests {
                 id: None,
                 name: "图文插件".into(),
                 description: "返回图文".into(),
-                code: "return { type: 'textImage', text: 'hello plugin' };".into(),
+                code: "(async function() { return { type: 'textImage', text: 'hello plugin' }; })()"
+                    .into(),
             })
             .unwrap();
 
         let result = state
-            .run_plugin_once("custom", &created.id.to_string())
+            .run_plugin_once("custom", &created.id.to_string(), std::collections::HashMap::new())
             .await
             .unwrap();
 
@@ -3355,6 +3628,7 @@ mod tests {
                 duration_type: "none".into(),
                 end_time: None,
                 duration_minutes: None,
+                config: None,
             })
             .unwrap();
 
@@ -3375,6 +3649,7 @@ mod tests {
                     duration_type: "for_duration".into(),
                     end_time: None,
                     duration_minutes: Some(30),
+                    config: None,
                 },
             )
             .unwrap();
@@ -3392,6 +3667,70 @@ mod tests {
     }
 
     #[test]
+    fn update_running_plugin_loop_task_rejects_page_used_by_running_image_loop_task() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
+
+        let mut image_task = state
+            .create_image_loop_task(crate::models::ImageLoopTaskInput {
+                name: "相册".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 5,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
+        image_task.status = "running".into();
+        state.save_image_loop_tasks(&vec![image_task]).unwrap();
+
+        let mut plugin_task = state
+            .create_plugin_loop_task(crate::models::PluginLoopTaskInput {
+                plugin_kind: "custom".into(),
+                plugin_id: "1".into(),
+                name: "天气循环".into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 1,
+                interval_seconds: 60,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+                config: None,
+            })
+            .unwrap();
+        plugin_task.status = "running".into();
+        state
+            .save_plugin_loop_tasks(&[plugin_task.clone()])
+            .unwrap();
+
+        let result = state.update_plugin_loop_task(
+            plugin_task.id,
+            crate::models::PluginLoopTaskInput {
+                plugin_kind: "custom".into(),
+                plugin_id: "1".into(),
+                name: "天气循环".into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 5,
+                interval_seconds: 60,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+                config: None,
+            },
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("第 5 页已有循环任务"));
+    }
+
+    #[test]
     fn start_plugin_loop_task_sets_running_status() {
         let dir = tempfile::tempdir().unwrap();
         let state = test_state(&dir);
@@ -3406,6 +3745,7 @@ mod tests {
                 duration_type: "none".into(),
                 end_time: None,
                 duration_minutes: None,
+                config: None,
             })
             .unwrap();
 
@@ -3430,6 +3770,7 @@ mod tests {
                 duration_type: "none".into(),
                 end_time: None,
                 duration_minutes: None,
+                config: None,
             })
             .unwrap();
 
@@ -3439,6 +3780,39 @@ mod tests {
         assert_eq!(stopped.status, "idle");
     }
 
+    #[test]
+    fn start_plugin_loop_task_rejects_page_used_by_running_stock_task() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        let mut stock_task = state.create_stock_push_task("AA:BB:CC", 2, 60).unwrap();
+        stock_task.status = "running".into();
+        state.save_stock_push_task(&stock_task).unwrap();
+
+        let plugin_task = state
+            .create_plugin_loop_task(crate::models::PluginLoopTaskInput {
+                plugin_kind: "custom".into(),
+                plugin_id: "1".into(),
+                name: "循环".into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 2,
+                interval_seconds: 60,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+                config: None,
+            })
+            .unwrap();
+
+        let result = state.start_plugin_loop_task(plugin_task.id);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("第 2 页已有循环任务"));
+    }
+
     #[tokio::test]
     async fn start_image_loop_task_sets_running_status() {
         let dir = tempfile::tempdir().unwrap();
@@ -3446,16 +3820,18 @@ mod tests {
 
         std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
 
-        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
-            name: "测试".into(),
-            folder_path: dir.path().to_str().unwrap().into(),
-            device_id: "AA:BB:CC".into(),
-            page_id: 1,
-            interval_seconds: 30,
-            duration_type: "none".into(),
-            end_time: None,
-            duration_minutes: None,
-        }).unwrap();
+        let created = state
+            .create_image_loop_task(crate::models::ImageLoopTaskInput {
+                name: "测试".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 1,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
 
         let started = state.start_image_loop_task(created.id).unwrap();
 
@@ -3465,20 +3841,109 @@ mod tests {
     }
 
     #[test]
+    fn start_image_loop_task_rejects_page_used_by_running_plugin_task() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
+
+        let image_task = state
+            .create_image_loop_task(crate::models::ImageLoopTaskInput {
+                name: "相册".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 3,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
+
+        let mut plugin_task = state
+            .create_plugin_loop_task(crate::models::PluginLoopTaskInput {
+                plugin_kind: "custom".into(),
+                plugin_id: "1".into(),
+                name: "天气循环".into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 3,
+                interval_seconds: 60,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+                config: None,
+            })
+            .unwrap();
+        plugin_task.status = "running".into();
+        state.save_plugin_loop_tasks(&[plugin_task]).unwrap();
+
+        let result = state.start_image_loop_task(image_task.id);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("第 3 页已有循环任务"));
+    }
+
+    #[test]
+    fn start_stock_push_task_rejects_page_used_by_running_image_loop_task() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state(&dir);
+
+        std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
+        save_json(
+            &dir.path().join("stock_watchlist.json"),
+            &vec![crate::models::StockWatchRecord {
+                code: "sh000001".into(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+            }],
+        )
+        .unwrap();
+
+        let mut image_task = state
+            .create_image_loop_task(crate::models::ImageLoopTaskInput {
+                name: "相册".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 4,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
+        image_task.status = "running".into();
+        state.save_image_loop_tasks(&vec![image_task]).unwrap();
+
+        state.create_stock_push_task("AA:BB:CC", 4, 60).unwrap();
+
+        let result = state.start_stock_push_task();
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("第 4 页已有循环任务"));
+    }
+
+    #[test]
     fn start_image_loop_task_fails_for_empty_folder() {
         let dir = tempfile::tempdir().unwrap();
         let state = test_state(&dir);
 
-        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
-            name: "空文件夹".into(),
-            folder_path: dir.path().to_str().unwrap().into(),
-            device_id: "AA:BB:CC".into(),
-            page_id: 1,
-            interval_seconds: 30,
-            duration_type: "none".into(),
-            end_time: None,
-            duration_minutes: None,
-        }).unwrap();
+        let created = state
+            .create_image_loop_task(crate::models::ImageLoopTaskInput {
+                name: "空文件夹".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 1,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
 
         let result = state.start_image_loop_task(created.id);
         assert!(result.is_err());
@@ -3492,16 +3957,18 @@ mod tests {
 
         std::fs::write(dir.path().join("photo.jpg"), vec![0u8; 100]).unwrap();
 
-        let created = state.create_image_loop_task(crate::models::ImageLoopTaskInput {
-            name: "测试".into(),
-            folder_path: dir.path().to_str().unwrap().into(),
-            device_id: "AA:BB:CC".into(),
-            page_id: 1,
-            interval_seconds: 30,
-            duration_type: "none".into(),
-            end_time: None,
-            duration_minutes: None,
-        }).unwrap();
+        let created = state
+            .create_image_loop_task(crate::models::ImageLoopTaskInput {
+                name: "测试".into(),
+                folder_path: dir.path().to_str().unwrap().into(),
+                device_id: "AA:BB:CC".into(),
+                page_id: 1,
+                interval_seconds: 30,
+                duration_type: "none".into(),
+                end_time: None,
+                duration_minutes: None,
+            })
+            .unwrap();
 
         state.start_image_loop_task(created.id).unwrap();
         let stopped = state.stop_image_loop_task(created.id).unwrap();

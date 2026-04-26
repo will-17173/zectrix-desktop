@@ -42,7 +42,10 @@ pub struct TextImagePluginOutput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImagePluginOutput {
+    #[serde(default)]
     pub image_data_url: String,
+    #[serde(default, alias = "url")]
+    pub image_url: Option<String>,
     #[serde(default)]
     pub title: Option<String>,
     #[serde(default)]
@@ -144,11 +147,23 @@ pub fn parse_plugin_output(raw: serde_json::Value) -> anyhow::Result<PluginOutpu
         }
         "image" => {
             let output: ImagePluginOutput = serde_json::from_value(raw)?;
-            if !output.image_data_url.starts_with("data:image/") {
-                anyhow::bail!("imageDataUrl 必须是 data:image/...;base64 格式");
+            let has_data_url = !output.image_data_url.trim().is_empty();
+            let has_image_url = output
+                .image_url
+                .as_deref()
+                .is_some_and(|url| !url.trim().is_empty());
+
+            if !has_data_url && !has_image_url {
+                anyhow::bail!("图片输出必须提供 imageDataUrl 或 imageUrl");
             }
-            if !output.image_data_url.contains(";base64,") {
-                anyhow::bail!("imageDataUrl 必须包含 base64 图片数据");
+
+            if has_data_url {
+                if !output.image_data_url.starts_with("data:image/") {
+                    anyhow::bail!("imageDataUrl 必须是 data:image/...;base64 格式");
+                }
+                if !output.image_data_url.contains(";base64,") {
+                    anyhow::bail!("imageDataUrl 必须包含 base64 图片数据");
+                }
             }
             Ok(PluginOutput::Image(output))
         }
@@ -204,6 +219,42 @@ mod tests {
         match parsed {
             PluginOutput::Image(output) => {
                 assert!(output.image_data_url.starts_with("data:image/png;base64,"));
+                assert!(output.image_url.is_none());
+            }
+            _ => panic!("expected image output"),
+        }
+    }
+
+    #[test]
+    fn parses_image_url() {
+        let raw = serde_json::json!({
+            "type": "image",
+            "imageUrl": "https://example.com/card.png"
+        });
+
+        let parsed = parse_plugin_output(raw).unwrap();
+
+        match parsed {
+            PluginOutput::Image(output) => {
+                assert_eq!(output.image_data_url, "");
+                assert_eq!(output.image_url.as_deref(), Some("https://example.com/card.png"));
+            }
+            _ => panic!("expected image output"),
+        }
+    }
+
+    #[test]
+    fn parses_image_url_alias_url() {
+        let raw = serde_json::json!({
+            "type": "image",
+            "url": "https://example.com/card.png"
+        });
+
+        let parsed = parse_plugin_output(raw).unwrap();
+
+        match parsed {
+            PluginOutput::Image(output) => {
+                assert_eq!(output.image_url.as_deref(), Some("https://example.com/card.png"));
             }
             _ => panic!("expected image output"),
         }

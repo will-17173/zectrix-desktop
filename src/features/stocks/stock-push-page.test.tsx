@@ -143,6 +143,27 @@ test("does not gray a stock before quote data is available", () => {
   expect(screen.getByText("600519").closest("li")).not.toHaveClass("text-gray-400");
 });
 
+test("shows stock names for valid quote data", () => {
+  render(
+    <StockPushPage
+      devices={devices}
+      watchlist={watchlist}
+      quotes={defaultQuotes}
+      pushTask={null}
+      onAddStock={vi.fn()}
+      onRemoveStock={vi.fn()}
+      onPushStocks={vi.fn()}
+      onFetchQuotes={vi.fn().mockResolvedValue(defaultQuotes)}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText(/贵州茅台/)).toBeInTheDocument();
+  expect(screen.getByText("600519").closest("li")).not.toHaveClass("text-gray-400");
+});
+
 test("grays a stock only when quote data marks it invalid", () => {
   render(
     <StockPushPage
@@ -248,6 +269,32 @@ test("adds and removes stocks", async () => {
 
   expect(onAddStock).toHaveBeenCalledWith("000001");
   expect(onRemoveStock).toHaveBeenCalledWith("600519");
+});
+
+test("adds a stock when pressing enter in the code input", async () => {
+  const user = userEvent.setup();
+  const onAddStock = vi.fn().mockResolvedValue({ code: "000001", createdAt: "2026-04-25T10:31:00Z" });
+
+  render(
+    <StockPushPage
+      devices={devices}
+      watchlist={[]}
+      quotes={[]}
+      pushTask={null}
+      onAddStock={onAddStock}
+      onRemoveStock={vi.fn()}
+      onPushStocks={vi.fn()}
+      onFetchQuotes={vi.fn().mockResolvedValue([])}
+      onCreateTask={vi.fn()}
+      onStartTask={vi.fn()}
+      onStopTask={vi.fn()}
+    />,
+  );
+
+  await user.type(screen.getByLabelText("股票代码"), "000001{enter}");
+
+  expect(onAddStock).toHaveBeenCalledWith("000001");
+  expect(await screen.findByText("000001")).toBeInTheDocument();
 });
 
 test("keeps both clicked delete buttons disabled during concurrent removals until each request finishes", async () => {

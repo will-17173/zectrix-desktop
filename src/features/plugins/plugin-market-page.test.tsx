@@ -49,6 +49,7 @@ test("creates a custom plugin", async () => {
     />,
   );
 
+  await user.click(screen.getByRole("tab", { name: "自定义插件" }));
   await user.click(screen.getByRole("button", { name: "新增插件" }));
   await user.type(screen.getByLabelText("插件名称"), "天气");
   await user.type(screen.getByLabelText("插件描述"), "天气插件");
@@ -57,6 +58,68 @@ test("creates a custom plugin", async () => {
   await user.click(screen.getByRole("button", { name: "保存插件" }));
 
   expect(save).toHaveBeenCalled();
+});
+
+test("prefills new custom plugins with a complete async function template", async () => {
+  const user = userEvent.setup();
+
+  render(
+    <PluginMarketPage
+      devices={devices}
+      builtinPlugins={[]}
+      customPlugins={[]}
+      pluginLoopTasks={[]}
+      onSavePlugin={vi.fn()}
+      onDeletePlugin={vi.fn()}
+      onPushPlugin={vi.fn()}
+      onCreateLoopTask={vi.fn()}
+      onDeleteLoopTask={vi.fn()}
+      onStartLoopTask={vi.fn()}
+      onStopLoopTask={vi.fn()}
+    />,
+  );
+
+  await user.click(screen.getByRole("tab", { name: "自定义插件" }));
+  await user.click(screen.getByRole("button", { name: "新增插件" }));
+
+  const code = screen.getByLabelText("插件代码") as HTMLTextAreaElement;
+
+  expect(code.value).toContain("(async function()");
+  expect(code.value).toContain("// 用户代码开始");
+  expect(code.value).toContain("// 用户代码结束");
+  expect(code.value).toContain("})()");
+  expect(code.value).not.toContain("textImage");
+});
+
+test("opens custom plugin usage instructions from the custom tab", async () => {
+  const user = userEvent.setup();
+
+  render(
+    <PluginMarketPage
+      devices={devices}
+      builtinPlugins={[]}
+      customPlugins={[]}
+      pluginLoopTasks={[]}
+      onSavePlugin={vi.fn()}
+      onDeletePlugin={vi.fn()}
+      onPushPlugin={vi.fn()}
+      onCreateLoopTask={vi.fn()}
+      onDeleteLoopTask={vi.fn()}
+      onStartLoopTask={vi.fn()}
+      onStopLoopTask={vi.fn()}
+    />,
+  );
+
+  await user.click(screen.getByRole("tab", { name: "自定义插件" }));
+  await user.click(screen.getByRole("button", { name: "使用方法" }));
+
+  expect(screen.getByRole("dialog", { name: "自定义插件使用方法" })).toBeInTheDocument();
+  expect(screen.getByText("插件代码会在异步函数中执行，可以返回文本或图片结果。")).toBeInTheDocument();
+  expect(screen.getByText("返回格式")).toBeInTheDocument();
+  expect(screen.getByText("文本示例")).toBeInTheDocument();
+  expect(screen.getByText("图片 URL 示例")).toBeInTheDocument();
+  expect(screen.getByText(/应用会先下载图片/)).toBeInTheDocument();
+  expect(screen.getByText("循环任务注意事项")).toBeInTheDocument();
 });
 
 test("pushes a custom plugin to selected page", async () => {
@@ -88,9 +151,48 @@ test("pushes a custom plugin to selected page", async () => {
     />,
   );
 
+  await user.click(screen.getByRole("tab", { name: "自定义插件" }));
   await user.click(screen.getByRole("button", { name: "推送一次" }));
 
   expect(push).toHaveBeenCalledWith("custom", "7", "AA:BB:CC:DD:EE:FF", 1);
+});
+
+test("edits a custom plugin only from the card edit button", async () => {
+  const user = userEvent.setup();
+
+  render(
+    <PluginMarketPage
+      devices={devices}
+      builtinPlugins={[]}
+      customPlugins={[
+        {
+          id: 7,
+          name: "天气",
+          description: "天气插件",
+          code: "return { type: 'text', text: 'sunny' };",
+          createdAt: "2026-04-25T00:00:00Z",
+          updatedAt: "2026-04-25T00:00:00Z",
+        },
+      ]}
+      pluginLoopTasks={[]}
+      onSavePlugin={vi.fn()}
+      onDeletePlugin={vi.fn()}
+      onPushPlugin={vi.fn()}
+      onCreateLoopTask={vi.fn()}
+      onDeleteLoopTask={vi.fn()}
+      onStartLoopTask={vi.fn()}
+      onStopLoopTask={vi.fn()}
+    />,
+  );
+
+  await user.click(screen.getByRole("tab", { name: "自定义插件" }));
+  await user.click(screen.getByText("天气"));
+
+  expect(screen.queryByRole("dialog", { name: "编辑插件 #7" })).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "编辑" }));
+
+  expect(screen.getByRole("dialog", { name: "编辑插件 #7" })).toBeInTheDocument();
 });
 
 test("creates a loop task for a custom plugin", async () => {
@@ -134,6 +236,7 @@ test("creates a loop task for a custom plugin", async () => {
     />,
   );
 
+  await user.click(screen.getByRole("tab", { name: "自定义插件" }));
   await user.click(screen.getByRole("button", { name: "循环" }));
 
   expect(createLoopTask).toHaveBeenCalledWith(
@@ -183,6 +286,8 @@ test("renders loop tasks and delegates task actions", async () => {
       onStopLoopTask={stopLoopTask}
     />,
   );
+
+  await user.click(screen.getByRole("tab", { name: "任务管理" }));
 
   expect(screen.getByText("天气循环")).toBeInTheDocument();
   expect(screen.getByText("第 1 页 · 每 60 秒 · error")).toBeInTheDocument();

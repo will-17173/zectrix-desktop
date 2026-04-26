@@ -222,6 +222,12 @@ export function StockPushPage({
               id="stock-code"
               value={code}
               onChange={(event) => setCode(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !isAdding && code.trim()) {
+                  event.preventDefault();
+                  void handleAdd();
+                }
+              }}
               placeholder="例如 600519"
               inputMode="numeric"
               maxLength={6}
@@ -247,7 +253,7 @@ export function StockPushPage({
               {stocks.map((stock) => {
                 const quote = getQuoteForCode(stock.code);
                 const isInvalid = quote ? !quote.valid : false;
-                  const invalidName = quote && !quote.valid ? quote.name : null;
+                const stockName = quote?.name;
                 return (
                   <li
                     key={stock.code}
@@ -255,7 +261,7 @@ export function StockPushPage({
                   >
                     <span className="font-mono text-sm">
                       {stock.code}
-                        {invalidName ? <span className="ml-2 text-xs">({invalidName})</span> : null}
+                      {stockName ? <span className="ml-2 text-xs">({stockName})</span> : null}
                     </span>
                     <button
                       type="button"

@@ -13,8 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import type {
   BuiltinPlugin,
+  PluginConfigOption,
   CustomPluginInput,
   CustomPluginRecord,
   DeviceRecord,
@@ -22,7 +24,11 @@ import type {
   PluginLoopTaskInput,
 } from "../../lib/tauri";
 
-const DEFAULT_PLUGIN_CODE = 'return { type: "text", text: "hello" };';
+const DEFAULT_PLUGIN_CODE = `(async function() {
+  // 用户代码开始
+
+  // 用户代码结束
+})()`;
 
 const PAGE_OPTIONS = [
   { value: 1, label: "第 1 页" },
@@ -52,6 +58,7 @@ type Props = {
     pluginId: string,
     deviceId: string,
     pageId: number,
+    config?: Record<string, string>,
   ) => Promise<void>;
   onCreateLoopTask: (input: PluginLoopTaskInput) => Promise<PluginLoopTask>;
   onDeleteLoopTask: (taskId: number) => Promise<void>;
@@ -87,6 +94,7 @@ export function PluginMarketPage({
   const [editing, setEditing] = useState<CustomPluginRecord | null>(null);
   const [draft, setDraft] = useState<CustomPluginInput>(() => createEmptyDraft());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [usageDialogOpen, setUsageDialogOpen] = useState(false);
   const firstDevice = devices[0];
 
   function handleNewPlugin() {
@@ -110,13 +118,9 @@ export function PluginMarketPage({
     try {
       const saved = await onSavePlugin(draft);
       toast.success("插件已保存");
-      setEditing(saved);
-      setDraft({
-        id: saved.id,
-        name: saved.name,
-        description: saved.description,
-        code: saved.code,
-      });
+      setEditing(null);
+      setDraft(createEmptyDraft());
+      setDialogOpen(false);
     } catch (error) {
       toast.error(`保存失败: ${getErrorMessage(error)}`);
     }
@@ -135,21 +139,21 @@ export function PluginMarketPage({
     }
   }
 
-  async function handleBuiltinPush(plugin: BuiltinPlugin, pageId: number) {
+  async function handleBuiltinPush(plugin: BuiltinPlugin, pageId: number, config?: Record<string, string>) {
     if (!firstDevice) {
       toast.error("请先在设置中添加设备");
       return;
     }
 
     try {
-      await onPushPlugin("builtin", plugin.id, firstDevice.deviceId, pageId);
+      await onPushPlugin("builtin", plugin.id, firstDevice.deviceId, pageId, config);
       toast.success(`推送成功，已发送到第 ${pageId} 页`);
     } catch (error) {
       toast.error(`推送失败: ${getErrorMessage(error)}`);
     }
   }
 
-  async function handleBuiltinCreateLoop(plugin: BuiltinPlugin, pageId: number, intervalSeconds: number) {
+  async function handleBuiltinCreateLoop(plugin: BuiltinPlugin, pageId: number, intervalSeconds: number, config?: Record<string, string>) {
     if (!firstDevice) {
       toast.error("请先在设置中添加设备");
       return;
@@ -164,6 +168,7 @@ export function PluginMarketPage({
         pageId,
         intervalSeconds,
         durationType: "none",
+        config,
       });
       toast.success("循环任务已创建");
     } catch (error) {
@@ -232,7 +237,7 @@ export function PluginMarketPage({
   }
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <header>
         <h2 className="text-lg font-semibold">插件市场</h2>
         <p className="text-sm text-gray-500">
@@ -240,64 +245,130 @@ export function PluginMarketPage({
         </p>
       </header>
 
-      <section className="space-y-4 rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
-        <div>
-          <h3 className="text-base font-medium">内置插件</h3>
-          <p className="mt-1 text-sm text-gray-500">系统内置插件，支持单次推送和创建循环任务。</p>
-        </div>
+      <Tabs defaultValue="builtin" className="w-full">
+        <TabsList>
+          <TabsTrigger value="builtin">内置插件</TabsTrigger>
+          <TabsTrigger value="custom">自定义插件</TabsTrigger>
+          <TabsTrigger value="tasks">任务管理</TabsTrigger>
+        </TabsList>
 
-        {builtinPlugins.length === 0 ? (
-          <p className="text-sm text-gray-500">暂无内置插件</p>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {builtinPlugins.map((plugin) => (
-              <PluginCard
-                key={plugin.id}
-                name={plugin.name}
-                description={plugin.description}
-                onPush={(pageId) => handleBuiltinPush(plugin, pageId)}
-                onCreateLoop={(pageId, intervalSeconds) => handleBuiltinCreateLoop(plugin, pageId, intervalSeconds)}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+        <TabsContent value="builtin" className="rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
+          <p className="mb-4 text-sm text-gray-500">
+            内置插件数量正在开发中，欢迎给作者 Bilibili up{' '}
+            <a
+              href="https://space.bilibili.com/328381287"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              @Terminator-AI
+            </a>{' '}
+            私信提出开发需求。
+          </p>
+          {builtinPlugins.length === 0 ? (
+            <p className="text-sm text-gray-500">暂无内置插件</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {builtinPlugins.map((plugin) => (
+                <PluginCard
+                  key={plugin.id}
+                  name={plugin.name}
+                  description={plugin.description}
+                  config={plugin.config}
+                  onPush={(pageId, config) => handleBuiltinPush(plugin, pageId, config)}
+                  onCreateLoop={(pageId, intervalSeconds, config) => handleBuiltinCreateLoop(plugin, pageId, intervalSeconds, config)}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
-      <section className="space-y-4 rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-medium">自定义插件</h3>
-            <p className="mt-1 text-sm text-gray-500">插件返回文本或图片结果，支持单次推送和创建循环任务。</p>
+        <TabsContent value="custom" className="rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <p className="text-sm text-gray-500">管理你自己编写的设备推送插件。</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setUsageDialogOpen(true)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+              >
+                使用方法
+              </button>
+              <button
+                type="button"
+                onClick={handleNewPlugin}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+              >
+                新增插件
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={handleNewPlugin}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
-          >
-            新增插件
-          </button>
-        </div>
 
-        {customPlugins.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500">
-            暂无自定义插件
-          </div>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {customPlugins.map((plugin) => (
-              <CustomPluginCard
-                key={plugin.id}
-                plugin={plugin}
-                isEditing={editing?.id === plugin.id}
-                onEdit={() => handleEdit(plugin)}
-                onPush={(pageId) => handlePush(plugin, pageId)}
-                onCreateLoop={(pageId, intervalSeconds) => handleCreateLoop(plugin, pageId, intervalSeconds)}
-                onDelete={() => void handleDelete(plugin)}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+          {customPlugins.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500">
+              暂无自定义插件
+            </div>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {customPlugins.map((plugin) => (
+                <CustomPluginCard
+                  key={plugin.id}
+                  plugin={plugin}
+                  isEditing={editing?.id === plugin.id}
+                  onEdit={() => handleEdit(plugin)}
+                  onPush={(pageId) => handlePush(plugin, pageId)}
+                  onCreateLoop={(pageId, intervalSeconds) => handleCreateLoop(plugin, pageId, intervalSeconds)}
+                  onDelete={() => void handleDelete(plugin)}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="tasks" className="rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
+          <p className="mb-4 text-sm text-gray-500">已创建的任务会按固定间隔将插件结果推送到设备页面。</p>
+          {pluginLoopTasks.length === 0 ? (
+            <p className="text-sm text-gray-500">暂无循环任务</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {pluginLoopTasks.map((task) => (
+                <article key={task.id} className="rounded-lg border border-gray-200 bg-white px-4 py-4 shadow-sm">
+                  <div className="text-sm font-semibold text-gray-900">{task.name}</div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {`第 ${task.pageId} 页 · 每 ${task.intervalSeconds} 秒 · ${task.status}`}
+                  </p>
+                  {task.errorMessage ? (
+                    <p className="mt-2 text-sm text-red-600">{task.errorMessage}</p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleStartLoopTask(task.id)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+                    >
+                      启动
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleStopLoopTask(task.id)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+                    >
+                      停止
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteLoopTask(task.id)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-red-400 hover:text-red-600"
+                    >
+                      删除
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -361,52 +432,77 @@ export function PluginMarketPage({
         </DialogContent>
       </Dialog>
 
-      <section className="space-y-3 rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
-        <div>
-          <h3 className="text-base font-medium">插件循环任务</h3>
-          <p className="mt-1 text-sm text-gray-500">已创建的任务会按固定间隔将插件结果推送到设备页面。</p>
-        </div>
-        {pluginLoopTasks.length === 0 ? (
-          <p className="text-sm text-gray-500">暂无循环任务</p>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {pluginLoopTasks.map((task) => (
-              <article key={task.id} className="rounded-lg border border-gray-200 bg-white px-4 py-4 shadow-sm">
-                <div className="text-sm font-semibold text-gray-900">{task.name}</div>
-                <p className="mt-1 text-sm text-gray-500">
-                  {`第 ${task.pageId} 页 · 每 ${task.intervalSeconds} 秒 · ${task.status}`}
-                </p>
-                {task.errorMessage ? (
-                  <p className="mt-2 text-sm text-red-600">{task.errorMessage}</p>
-                ) : null}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleStartLoopTask(task.id)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
-                  >
-                    启动
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleStopLoopTask(task.id)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
-                  >
-                    停止
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteLoopTask(task.id)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-red-400 hover:text-red-600"
-                  >
-                    删除
-                  </button>
-                </div>
-              </article>
-            ))}
+      <Dialog open={usageDialogOpen} onOpenChange={setUsageDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>自定义插件使用方法</DialogTitle>
+          </DialogHeader>
+
+          <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1 text-sm leading-6 text-gray-600">
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">执行方式</h3>
+              <p>插件代码会在异步函数中执行，可以返回文本或图片结果。</p>
+              <p>你可以在代码里使用标准 JavaScript 语法，适合生成固定文案、拼接时间信息、请求接口后整理成设备可读内容。</p>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">返回格式</h3>
+              <p>
+                返回文本时使用 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">{"{ type: \"text\", text: \"内容\" }"}</code>。
+              </p>
+              <p>
+                返回图片时使用 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">{"{ type: \"image\", image: \"data:image/png;base64,...\" }"}</code>。
+              </p>
+              <p>
+                如果图片在网上，也可以返回 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">{"{ type: \"image\", imageUrl: \"https://example.com/card.png\" }"}</code>，
+                应用会先下载图片，再转换为设备需要的 PNG 推送。
+              </p>
+              <p>返回值必须是对象；如果接口请求失败，建议返回一段可读的错误文本，方便在设备页面上排查。</p>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">文本示例</h3>
+              <pre className="overflow-x-auto rounded-lg bg-gray-950 px-3 py-3 text-xs leading-5 text-gray-100">
+                <code>{`const now = new Date().toLocaleString();
+return {
+  type: "text",
+  text: \`当前时间：\${now}\`,
+};`}</code>
+              </pre>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">接口请求示例</h3>
+              <pre className="overflow-x-auto rounded-lg bg-gray-950 px-3 py-3 text-xs leading-5 text-gray-100">
+                <code>{`const response = await fetch("https://example.com/api/status");
+const data = await response.json();
+
+return {
+  type: "text",
+  text: \`状态：\${data.message}\`,
+};`}</code>
+              </pre>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">图片 URL 示例</h3>
+              <pre className="overflow-x-auto rounded-lg bg-gray-950 px-3 py-3 text-xs leading-5 text-gray-100">
+                <code>{`return {
+  type: "image",
+  imageUrl: "https://example.com/card.png",
+};`}</code>
+              </pre>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">循环任务注意事项</h3>
+              <p>保存后可以在自定义插件列表里单次推送，也可以选择页面和间隔创建循环任务。</p>
+              <p>循环任务会反复执行同一段插件代码，请避免写入耗时过长、频率过高或依赖不稳定接口的逻辑。</p>
+              <p>如果插件需要访问网络，请确认接口返回稳定，并给设备页面准备一个简短、可读的失败提示。</p>
+            </section>
           </div>
-        )}
-      </section>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
@@ -414,28 +510,82 @@ export function PluginMarketPage({
 type PluginCardProps = {
   name: string;
   description: string;
-  onPush: (pageId: number) => Promise<void>;
-  onCreateLoop: (pageId: number, intervalSeconds: number) => void;
+  config?: PluginConfigOption[];
+  onPush: (pageId: number, config?: Record<string, string>) => Promise<void>;
+  onCreateLoop: (pageId: number, intervalSeconds: number, config?: Record<string, string>) => void;
 };
 
-function PluginCard({ name, description, onPush, onCreateLoop }: PluginCardProps) {
+function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginCardProps) {
   const [pageId, setPageId] = useState(1);
   const [intervalSeconds, setIntervalSeconds] = useState(60);
   const [pushing, setPushing] = useState(false);
+  // 初始化配置状态，使用默认值
+  const [configValues, setConfigValues] = useState<Record<string, string>>(() => {
+    if (!config) return {};
+    return config.reduce((acc, opt) => {
+      acc[opt.name] = opt.default;
+      return acc;
+    }, {} as Record<string, string>);
+  });
 
   async function handlePush() {
     setPushing(true);
     try {
-      await onPush(pageId);
+      await onPush(pageId, configValues);
     } finally {
       setPushing(false);
     }
+  }
+
+  function handleCreateLoop() {
+    onCreateLoop(pageId, intervalSeconds, configValues);
   }
 
   return (
     <article className="rounded-lg border border-gray-200 bg-white px-4 py-4 shadow-sm">
       <div className="text-sm font-semibold text-gray-900">{name}</div>
       <p className="mt-1 text-sm text-gray-500">{description || "暂无描述"}</p>
+      {/* 配置选项 */}
+      {config && config.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {config.map((opt) => {
+            const isInput = opt.inputType === "text";
+            if (isInput) {
+              return (
+                <div key={opt.name} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 shrink-0">{opt.label}</span>
+                  <input
+                    type="text"
+                    value={configValues[opt.name] || opt.default}
+                    onChange={(e) => setConfigValues((prev) => ({ ...prev, [opt.name]: e.target.value }))}
+                    className="flex-1 h-9 rounded-md border border-gray-300 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              );
+            }
+            return (
+              <div key={opt.name} className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500">{opt.label}</span>
+                <Select
+                  value={configValues[opt.name] || opt.default}
+                  onValueChange={(v) => setConfigValues((prev) => ({ ...prev, [opt.name]: v }))}
+                >
+                  <SelectTrigger className="w-[80px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(opt.options || []).map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Select value={String(pageId)} onValueChange={(v) => setPageId(Number(v))}>
@@ -464,7 +614,7 @@ function PluginCard({ name, description, onPush, onCreateLoop }: PluginCardProps
           </Select>
           <button
             type="button"
-            onClick={() => onCreateLoop(pageId, intervalSeconds)}
+            onClick={handleCreateLoop}
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
           >
             循环
@@ -521,23 +671,26 @@ function CustomPluginCard({
           : "border-gray-200 bg-white shadow-sm"
       }`}
     >
-      <button
-        type="button"
-        onClick={onEdit}
-        className="w-full text-left"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-gray-900">{plugin.name}</div>
-            <p className="mt-1 text-sm text-gray-500">{plugin.description || "暂无描述"}</p>
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-gray-900">{plugin.name}</div>
+          <p className="mt-1 text-sm text-gray-500">{plugin.description || "暂无描述"}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
           {isEditing ? (
             <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
               编辑中
             </span>
           ) : null}
+          <button
+            type="button"
+            onClick={onEdit}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+          >
+            编辑
+          </button>
         </div>
-      </button>
+      </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Select value={String(pageId)} onValueChange={(v) => setPageId(Number(v))}>
