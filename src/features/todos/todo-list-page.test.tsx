@@ -204,8 +204,8 @@ test("badge reflects remote identity rather than dirty state", async () => {
     />,
   );
 
-  expect(screen.getByText("本地未同步").parentElement?.querySelector(".bg-amber-100")).toHaveTextContent("本地");
-  expect(screen.getByText("云端已同步").parentElement?.querySelector(".bg-emerald-100")).toHaveTextContent("云端");
+  expect(screen.getByText("本地未同步").parentElement?.parentElement?.querySelector(".bg-amber-100")).toHaveTextContent("本地");
+  expect(screen.getByText("云端已同步").parentElement?.parentElement?.querySelector(".bg-emerald-100")).toHaveTextContent("云端");
 });
 
 test("pushing a local todo does not flip it into remote ui state", async () => {

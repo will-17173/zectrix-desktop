@@ -32,36 +32,43 @@ export function DeviceManagementPage(props: DeviceManagementPageProps) {
   }
 
   return (
-    <section className="p-4">
-      <h2 className="text-xl font-semibold mb-4">设备管理</h2>
-      <div className="space-y-4 max-w-md">
+    <section className="p-4 space-y-6">
+      <header className="rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 border border-emerald-100">
+        <h2 className="text-xl font-semibold text-gray-900">设备管理</h2>
+        <p className="text-sm text-gray-500">添加和管理你的墨水屏设备。</p>
+      </header>
+      <div className="space-y-4 max-w-md p-4 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/30 to-white shadow-sm">
         <div className="space-y-2">
-          <label htmlFor="device-id" className="block text-sm font-medium">MAC 地址</label>
+          <label htmlFor="device-id" className="block text-sm font-medium text-gray-700">MAC 地址</label>
           <input
             id="device-id"
             aria-label="MAC 地址"
             value={deviceId}
             onChange={(e) => setDeviceId(e.currentTarget.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600"
+            placeholder="XX:XX:XX:XX:XX:XX"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
         <button
           onClick={handleAdd}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm transition"
         >
           添加设备
         </button>
         {error && <p role="alert" className="text-red-600 text-sm">{error}</p>}
       </div>
 
-      <ul className="mt-6 space-y-2">
+      <ul className="mt-6 space-y-2 max-w-md">
         {devices.map((device) => (
-          <li key={device.deviceId} className="flex items-center gap-3 p-2 border border-gray-200 rounded-md dark:border-gray-700">
-            <span className="font-medium">{device.alias}</span>
-            <span className="text-gray-500 text-sm">{device.board}</span>
+          <li key={device.deviceId} className="flex items-center gap-3 p-3 border border-emerald-200 rounded-md bg-gradient-to-br from-emerald-50/30 to-white shadow-sm hover:shadow-md transition">
+            <div className="flex items-center gap-2 flex-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+              <span className="font-medium text-gray-900">{device.alias}</span>
+              <span className="text-gray-500 text-sm ml-2">{device.board}</span>
+            </div>
             <button
               onClick={() => handleRemove(device.deviceId)}
-              className="ml-auto px-3 py-1 text-sm text-red-600 hover:text-red-700"
+              className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition"
             >
               删除
             </button>

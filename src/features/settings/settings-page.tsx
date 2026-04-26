@@ -132,49 +132,56 @@ export function SettingsPage({
 
   return (
     <section className="p-4 flex flex-col min-h-full">
+      <header className="rounded-lg bg-gradient-to-r from-gray-50 to-slate-50 px-4 py-3 border border-gray-200 mb-6">
+        <h2 className="text-xl font-semibold text-gray-900">设置</h2>
+        <p className="text-sm text-gray-500">管理 API Key、设备和应用配置。</p>
+      </header>
       <div className="flex-1 space-y-8">
         <div>
         <div className="flex items-center justify-between gap-3 mb-4">
-          <h2 className="text-xl font-semibold">API Key 管理</h2>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">API Key 管理</h3>
+            <p className="text-sm text-gray-500">用于与云端服务通信的认证密钥。</p>
+          </div>
           {!showApiKeyForm && (
             <button
               type="button"
               onClick={() => setShowApiKeyForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 shadow-sm transition"
             >
               添加 API Key
             </button>
           )}
         </div>
         {showApiKeyForm && (
-          <form onSubmit={handleAddApiKey} className="space-y-4 max-w-md mb-6">
+          <form onSubmit={handleAddApiKey} className="space-y-4 max-w-md mb-6 p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/50 to-white shadow-sm">
             <div className="space-y-2">
-              <label htmlFor="api-key-name" className="block text-sm font-medium">名称</label>
+              <label htmlFor="api-key-name" className="block text-sm font-medium text-gray-700">名称</label>
               <input
                 id="api-key-name"
                 value={apiKeyName}
                 onChange={(e) => setApiKeyName(e.target.value)}
                 placeholder="例如：工作账号"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="api-key-value" className="block text-sm font-medium">API Key</label>
+              <label htmlFor="api-key-value" className="block text-sm font-medium text-gray-700">API Key</label>
               <input
                 id="api-key-value"
                 value={apiKeyValue}
                 onChange={(e) => setApiKeyValue(e.target.value)}
                 placeholder="zt_xxx"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500"
               />
               <p className="text-sm text-gray-500">
-                请到 <a href="https://cloud.zectrix.com/home/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://cloud.zectrix.com/home/api-keys</a> 创建 API Key
+                请到 <a href="https://cloud.zectrix.com/home/api-keys" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:underline">https://cloud.zectrix.com/home/api-keys</a> 创建 API Key
               </p>
             </div>
             <div className="flex gap-2">
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 shadow-sm transition"
               >
                 保存 API Key
               </button>
@@ -182,7 +189,7 @@ export function SettingsPage({
                 <button
                   type="button"
                   onClick={() => setShowApiKeyForm(false)}
-                  className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300"
+                  className="px-4 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition"
                 >
                   取消
                 </button>
@@ -193,14 +200,15 @@ export function SettingsPage({
 
         <ul className="mt-6 space-y-2 max-w-[648px]">
           {apiKeys.map((key) => (
-            <li key={key.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-md dark:border-gray-700">
-              <div className="flex-1">
-                <span className="font-medium">{key.name}</span>
-                <span className="text-gray-400 text-sm ml-6 font-mono">{maskApiKey(key.key)}</span>
+            <li key={key.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-md bg-gradient-to-br from-slate-50/30 to-white hover:shadow-sm transition">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+                <span className="font-medium text-gray-900">{key.name}</span>
+                <span className="text-gray-400 text-sm ml-4 font-mono">{maskApiKey(key.key)}</span>
               </div>
               <button
                 onClick={() => handleRemoveApiKey(key.id)}
-                className="px-3 py-1 text-sm text-red-600 hover:text-red-700"
+                className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition"
               >
                 删除
               </button>
@@ -212,23 +220,28 @@ export function SettingsPage({
 
       <div>
         <div className="flex items-center justify-between gap-3 mb-4">
-          <h2 className="text-xl font-semibold">设备管理</h2>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">设备管理</h3>
+            <p className="text-sm text-gray-500">管理已连接的墨水屏设备。</p>
+          </div>
           {!showDeviceForm && apiKeys.length > 0 && (
             <button
               type="button"
               onClick={() => setShowDeviceForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm transition"
             >
               添加设备
             </button>
           )}
         </div>
         {apiKeys.length === 0 ? (
-          <p className="text-gray-500">请先添加 API Key</p>
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/30 px-4 py-4 text-sm text-slate-500">
+            请先添加 API Key
+          </div>
         ) : showDeviceForm ? (
-          <div className="space-y-4 max-w-md">
+          <div className="space-y-4 max-w-md p-4 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/30 to-white shadow-sm">
             <div className="space-y-2">
-              <label id="api-key-select-label" htmlFor="api-key-select" className="block text-sm font-medium">选择 API Key</label>
+              <label id="api-key-select-label" htmlFor="api-key-select" className="block text-sm font-medium text-gray-700">选择 API Key</label>
               <Select value={selectedApiKey} onValueChange={setSelectedApiKey}>
                 <SelectTrigger
                 id="api-key-select"
@@ -244,20 +257,20 @@ export function SettingsPage({
               </Select>
             </div>
             <div className="space-y-2">
-              <label htmlFor="device-id" className="block text-sm font-medium">MAC 地址</label>
+              <label htmlFor="device-id" className="block text-sm font-medium text-gray-700">MAC 地址</label>
               <input
                 id="device-id"
                 aria-label="MAC 地址"
                 value={deviceId}
                 onChange={(e) => setDeviceId(e.currentTarget.value)}
                 placeholder="XX:XX:XX:XX:XX:XX"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
             <div className="flex gap-2">
               <button
                 onClick={handleAddDevice}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm transition"
               >
                 保存设备
               </button>
@@ -265,7 +278,7 @@ export function SettingsPage({
                 <button
                   type="button"
                   onClick={() => setShowDeviceForm(false)}
-                  className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300"
+                  className="px-4 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition"
                 >
                   取消
                 </button>
@@ -279,13 +292,16 @@ export function SettingsPage({
 
         <ul className="mt-6 space-y-2 max-w-[648px]">
           {devices.map((device) => (
-            <li key={device.deviceId} className="flex items-center gap-3 p-2 border border-gray-200 rounded-md dark:border-gray-700">
-              <span className="font-medium">{device.alias}</span>
-              <span className="text-gray-500 text-sm ml-6">{device.board}</span>
-              <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded ml-6">{getApiKeyName(device.apiKeyId)}</span>
+            <li key={device.deviceId} className="flex items-center gap-3 p-3 border border-emerald-200 rounded-md bg-gradient-to-br from-emerald-50/30 to-white hover:shadow-sm transition">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                <span className="font-medium text-gray-900">{device.alias}</span>
+                <span className="text-gray-500 text-sm ml-4">{device.board}</span>
+                <span className="text-xs text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded ml-4">{getApiKeyName(device.apiKeyId)}</span>
+              </div>
               <button
                 onClick={() => handleRemoveDevice(device.deviceId)}
-                className="ml-auto px-3 py-1 text-sm text-red-600 hover:text-red-700"
+                className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition"
               >
                 删除
               </button>
@@ -296,40 +312,48 @@ export function SettingsPage({
 
       {/* 关于 / 更新检测 */}
       <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-4">关于</h2>
-        <div className="flex items-center gap-4">
-          <div className="text-sm">
-            <span className="text-gray-500">当前版本：</span>
-            <span className="font-mono">{currentVersion || "加载中..."}</span>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">关于</h3>
+        <div className="p-4 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50/50 to-white shadow-sm">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="text-sm">
+              <span className="text-gray-500">当前版本：</span>
+              <span className="font-mono text-gray-900">{currentVersion || "加载中..."}</span>
+            </div>
+            <button
+              onClick={handleCheckUpdate}
+              disabled={checkingUpdate}
+              className="px-4 py-2 bg-slate-600 text-white text-sm rounded-md hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition"
+            >
+              {checkingUpdate ? "检查中..." : "检查更新"}
+            </button>
           </div>
-          <button
-            onClick={handleCheckUpdate}
-            disabled={checkingUpdate}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {checkingUpdate ? "检查中..." : "检查更新"}
-          </button>
+          {updateError && (
+            <p role="alert" className="text-red-600 text-sm">{updateError}</p>
+          )}
+          {updateInfo && (
+            <div className="mt-3 p-3 border border-gray-200 rounded-md bg-white">
+              {updateInfo.has_update ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-emerald-600 font-medium flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                    发现新版本 v{updateInfo.latest_version}
+                  </span>
+                  <button
+                    onClick={handleOpenRelease}
+                    className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 underline"
+                  >
+                    前往 GitHub Release 页面下载
+                  </button>
+                </div>
+              ) : (
+                <span className="text-gray-500 flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                  已是最新版本
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        {updateError && (
-          <p role="alert" className="text-red-600 text-sm mt-2">{updateError}</p>
-        )}
-        {updateInfo && (
-          <div className="mt-3 p-3 border border-gray-200 rounded-md dark:border-gray-700">
-            {updateInfo.has_update ? (
-              <div className="flex items-center gap-3">
-                <span className="text-green-600 font-medium">发现新版本 v{updateInfo.latest_version}</span>
-                <button
-                  onClick={handleOpenRelease}
-                  className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 underline"
-                >
-                  前往 GitHub Release 页面下载
-                </button>
-              </div>
-            ) : (
-              <span className="text-gray-500">已是最新版本</span>
-            )}
-          </div>
-        )}
       </div>
       </div>
 

@@ -290,7 +290,8 @@ test("renders loop tasks and delegates task actions", async () => {
   await user.click(screen.getByRole("tab", { name: "任务管理" }));
 
   expect(screen.getByText("天气循环")).toBeInTheDocument();
-  expect(screen.getByText("第 1 页 · 每 60 秒 · error")).toBeInTheDocument();
+  expect(screen.getByText("第 1 页 · 每 1 分钟")).toBeInTheDocument();
+  expect(screen.getByText("错误")).toBeInTheDocument();
   expect(screen.getByText("推送失败")).toBeInTheDocument();
   expect(screen.queryByText("暂无循环任务")).not.toBeInTheDocument();
 

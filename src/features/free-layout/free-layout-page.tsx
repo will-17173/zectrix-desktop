@@ -63,28 +63,30 @@ export function FreeLayoutPage({ devices, onPushText }: Props) {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">自由排版</h2>
-          <p className="text-sm text-gray-500">输入文本内容，设置字号，推送到设备的指定页面。</p>
+      <header className="rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3 border border-amber-100">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">自由排版</h2>
+            <p className="text-sm text-gray-500">输入文本内容，设置字号，推送到设备的指定页面。</p>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="space-y-4 max-w-md p-4 rounded-xl border border-gray-200 bg-white/85 shadow-sm">
+      <div className="space-y-4 max-w-md p-4 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50/30 to-white shadow-sm">
         <div className="space-y-2">
-          <label htmlFor="text-content" className="block text-sm font-medium">文本内容</label>
+          <label htmlFor="text-content" className="block text-sm font-medium text-gray-700">文本内容</label>
           <textarea
             id="text-content"
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="最多5000字，支持换行"
             rows={6}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
         </div>
 
         <div className="space-y-2">
-          <label id="font-size-label" htmlFor="font-size-trigger" className="block text-sm font-medium">字号</label>
+          <label id="font-size-label" htmlFor="font-size-trigger" className="block text-sm font-medium text-gray-700">字号</label>
           <Select value={String(fontSize)} onValueChange={(value) => setFontSize(Number(value))}>
             <SelectTrigger
               id="font-size-trigger"
@@ -103,7 +105,7 @@ export function FreeLayoutPage({ devices, onPushText }: Props) {
         </div>
 
         <div className="space-y-2">
-          <label id="page-id-label" htmlFor="page-id-trigger" className="block text-sm font-medium">页码</label>
+          <label id="page-id-label" htmlFor="page-id-trigger" className="block text-sm font-medium text-gray-700">页码</label>
           <Select value={String(pageId)} onValueChange={(value) => setPageId(Number(value))}>
             <SelectTrigger
               id="page-id-trigger"
@@ -125,7 +127,7 @@ export function FreeLayoutPage({ devices, onPushText }: Props) {
           type="button"
           onClick={handlePush}
           disabled={isPushing || !text.trim()}
-          className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+          className="w-full px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:bg-amber-300 shadow-sm transition"
         >
           {isPushing ? "推送中..." : "推送"}
         </button>

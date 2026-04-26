@@ -191,29 +191,33 @@ export function TodoListPage({
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">待办列表</h2>
-        <div className="flex items-center gap-3">
-          {onSync && (
-            <button
-              type="button"
-              disabled={syncState === "syncing"}
-              onClick={onSync}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
-            >
-              {syncState === "syncing" ? "同步中..." : "同步待办"}
-            </button>
-          )}
-          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
+      <header className="rounded-lg bg-gradient-to-r from-blue-50 to-sky-50 px-4 py-3 border border-blue-100">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">待办列表</h2>
+            <p className="text-sm text-gray-500">管理你的待办事项，支持推送到墨水屏设备。</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {onSync && (
               <button
                 type="button"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={syncState === "syncing"}
+                onClick={onSync}
+                className="px-4 py-2 border border-blue-300 text-blue-600 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
               >
-                添加待办
+                {syncState === "syncing" ? "同步中..." : "同步待办"}
               </button>
-            </DialogTrigger>
-          <DialogContent>
+            )}
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                >
+                  添加待办
+                </button>
+              </DialogTrigger>
+              <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingTodo ? "编辑待办" : "添加待办"}</DialogTitle>
             </DialogHeader>
@@ -410,35 +414,39 @@ export function TodoListPage({
             </form>
           </DialogContent>
         </Dialog>
+          </div>
         </div>
-      </div>
+      </header>
 
       <ul className="space-y-3">
         {visibleTodos.map((todo) => (
-          <li key={todo.localId} className="rounded-2xl border border-gray-200 bg-white/85 p-4 shadow-sm">
+          <li key={todo.localId} className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/30 to-white p-4 shadow-sm hover:shadow-md transition">
             <div className="flex items-start gap-3">
               <input
                 type="checkbox"
                 checked={todo.status === 1}
                 onChange={() => handleToggle(todo.localId)}
                 aria-label={`完成 ${todo.title}`}
-                className="mt-1 h-4 w-4"
+                className="mt-1 h-4 w-4 accent-blue-500"
               />
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={todo.status === 1 ? "text-gray-500 line-through font-medium" : "font-medium"}>{todo.title}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${todo.id === null ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${todo.status === 1 ? "bg-gray-300" : todo.priority === 2 ? "bg-red-500" : todo.priority === 1 ? "bg-amber-500" : "bg-blue-400"}`}></div>
+                    <span className={todo.status === 1 ? "text-gray-500 line-through font-medium" : "font-medium text-gray-900"}>{todo.title}</span>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${todo.id === null ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
                     {todo.id === null ? "本地" : "云端"}
                   </span>
                 </div>
-                {todo.description ? <p className="text-sm text-gray-600">{todo.description}</p> : null}
-                <p className="text-sm text-gray-500">{formatDeadline(todo)}</p>
+                {todo.description ? <p className="text-sm text-gray-600 pl-3.5">{todo.description}</p> : null}
+                <p className="text-sm text-gray-500 pl-3.5">{formatDeadline(todo)}</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => handleEdit(todo)}
-                  className="px-2 py-1 text-sm text-gray-600 hover:text-blue-600"
+                  className="px-2 py-1 text-sm text-gray-600 hover:text-blue-600 transition"
                   aria-label={`编辑 ${todo.title}`}
                 >
                   编辑
@@ -446,7 +454,7 @@ export function TodoListPage({
                 <button
                   type="button"
                   onClick={() => handleDelete(todo.localId)}
-                  className="px-2 py-1 text-sm text-gray-600 hover:text-red-600"
+                  className="px-2 py-1 text-sm text-gray-600 hover:text-red-600 transition"
                   aria-label={`删除 ${todo.title}`}
                 >
                   删除
@@ -455,7 +463,7 @@ export function TodoListPage({
                   type="button"
                   onClick={() => handlePush(todo.localId)}
                   disabled={pushingId === todo.localId}
-                  className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition"
                 >
                   {pushingId === todo.localId ? "推送中..." : "推送"}
                 </button>

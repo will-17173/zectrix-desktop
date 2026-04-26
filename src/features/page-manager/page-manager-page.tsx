@@ -121,21 +121,25 @@ export function PageManagerPage({ devices, onRefreshLoopTasks }: Props) {
 
   return (
     <section className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">页面管理</h2>
-        <p className="text-sm text-gray-500">
-          注意：你在其它设备推送的页面内容不会同步到这里。
-        </p>
-      </div>
+      <header className="rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 border border-emerald-100">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">页面管理</h2>
+          <p className="text-sm text-gray-500">
+            注意：你在其它设备推送的页面内容不会同步到这里。
+          </p>
+        </div>
+      </header>
 
       {devices.length === 0 && (
-        <div className="text-sm text-gray-500">请先在设置中添加设备。</div>
+        <div className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/30 px-4 py-6 text-sm text-emerald-500">
+          请先在设置中添加设备。
+        </div>
       )}
 
       {devices.length > 0 && (
         <div className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="device-select" className="block text-sm font-medium">
+            <label htmlFor="device-select" className="block text-sm font-medium text-gray-700">
               选择设备
             </label>
             <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
@@ -165,12 +169,15 @@ export function PageManagerPage({ devices, onRefreshLoopTasks }: Props) {
                 return (
                   <div
                     key={pageId}
-                    className="p-4 rounded-xl border border-gray-200 bg-white/85 shadow-sm space-y-2"
+                    className="p-4 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/30 to-white shadow-sm space-y-2 hover:shadow-md transition"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">第 {pageId} 页</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                        <span className="text-sm font-medium text-gray-900">第 {pageId} 页</span>
+                      </div>
                       {Icon && (
-                        <Icon size={16} className="text-gray-400" />
+                        <Icon size={16} className="text-emerald-400" />
                       )}
                     </div>
 
@@ -184,7 +191,7 @@ export function PageManagerPage({ devices, onRefreshLoopTasks }: Props) {
                           type="button"
                           onClick={() => handleDelete(pageId)}
                           disabled={isDeleting}
-                          className="w-full flex items-center justify-center gap-1 px-2 py-1 text-sm text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
+                          className="w-full flex items-center justify-center gap-1 px-2 py-1 text-sm text-red-600 hover:bg-red-50 rounded disabled:opacity-50 transition"
                         >
                           <Trash2 size={14} />
                           {isDeleting ? "删除中..." : "删除"}
@@ -200,14 +207,14 @@ export function PageManagerPage({ devices, onRefreshLoopTasks }: Props) {
                           type="button"
                           onClick={() => handleToggleTask(loopTask)}
                           disabled={togglingTaskId === loopTask.id}
-                          className="flex items-center gap-0.5 px-2 py-0.5 text-xs text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
+                          className="flex items-center gap-0.5 px-2 py-0.5 text-xs text-red-500 hover:bg-red-50 rounded disabled:opacity-50 transition"
                         >
                           <Pause size={10} />
                           {togglingTaskId === loopTask.id ? "停止中" : "停止"}
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center h-32 text-sm text-gray-400">
+                      <div className="flex items-center justify-center h-32 text-sm text-gray-400 border border-dashed border-gray-200 rounded">
                         暂无内容
                       </div>
                     )}

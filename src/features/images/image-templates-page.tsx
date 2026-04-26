@@ -211,19 +211,21 @@ export function ImageTemplatesPage({
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">本地图库</h2>
-          <p className="text-sm text-gray-500">导入后的图片会先保存在应用本地，选中后再单独推送到设备。</p>
+      <header className="rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 px-4 py-3 border border-violet-100">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">本地图库</h2>
+            <p className="text-sm text-gray-500">导入后的图片会先保存在应用本地，选中后再单独推送到设备。</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditorOpen(true)}
+            className="px-4 py-2 bg-violet-500 text-white rounded-md hover:bg-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-500 shadow-sm transition"
+          >
+            导入图片
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setEditorOpen(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          导入图片
-        </button>
-      </div>
+      </header>
 
       {editorOpen && (
         <ImageEditorDialog onSave={handleSave} onClose={() => setEditorOpen(false)} />
@@ -231,7 +233,7 @@ export function ImageTemplatesPage({
 
       <ul className="grid gap-3 grid-cols-5">
         {templates.map((t) => (
-          <li key={t.id} className="rounded-xl border border-gray-200 bg-white/85 shadow-sm overflow-hidden">
+          <li key={t.id} className="rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50/30 to-white shadow-sm overflow-hidden hover:shadow-md transition">
             <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center relative">
               {t.thumbnail ? (
                 <img
@@ -273,7 +275,7 @@ export function ImageTemplatesPage({
                 type="button"
                 onClick={() => handlePush(t.id)}
                 disabled={pushingId === t.id}
-                className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 whitespace-nowrap"
+                className="px-3 py-1.5 bg-violet-500 text-white text-sm rounded-md hover:bg-violet-600 disabled:cursor-not-allowed disabled:bg-violet-300 whitespace-nowrap shadow-sm transition"
               >
                 {pushingId === t.id ? "推送中..." : "推送"}
               </button>
@@ -284,19 +286,24 @@ export function ImageTemplatesPage({
 
       {/* 文件夹轮播区域 */}
       <section className="mt-8 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">文件夹轮播</h2>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingTask(undefined);
-              setDialogOpen(true);
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            新建任务
-          </button>
-        </div>
+        <header className="rounded-lg bg-gradient-to-r from-purple-50 to-fuchsia-50 px-4 py-3 border border-purple-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">文件夹轮播</h2>
+              <p className="text-sm text-gray-500">设置文件夹图片自动轮播推送到设备。</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingTask(undefined);
+                setDialogOpen(true);
+              }}
+              className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 shadow-sm transition"
+            >
+              新建任务
+            </button>
+          </div>
+        </header>
 
         <ImageLoopTaskList
           tasks={loopTasks}

@@ -52,38 +52,40 @@ export function TextTemplatesPage({ devices, onPushText }: Props) {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">文本推送</h2>
-          <p className="text-sm text-gray-500">输入标题和正文后推送到设备的指定页面。</p>
+      <header className="rounded-lg bg-gradient-to-r from-indigo-50 to-violet-50 px-4 py-3 border border-indigo-100">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">文本推送</h2>
+            <p className="text-sm text-gray-500">输入标题和正文后推送到设备的指定页面。</p>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <form onSubmit={handlePush} className="space-y-4 max-w-md p-4 rounded-xl border border-gray-200 bg-white/85 shadow-sm">
+      <form onSubmit={handlePush} className="space-y-4 max-w-md p-4 rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/30 to-white shadow-sm">
         <div className="space-y-2">
-          <label htmlFor="text-title" className="block text-sm font-medium">标题</label>
+          <label htmlFor="text-title" className="block text-sm font-medium text-gray-700">标题</label>
           <input
             id="text-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="输入标题，最多 200 字"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
         <div className="space-y-2">
-          <label htmlFor="text-body" className="block text-sm font-medium">正文</label>
+          <label htmlFor="text-body" className="block text-sm font-medium text-gray-700">正文</label>
           <textarea
             id="text-body"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="输入正文内容，支持换行"
             rows={6}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
         <div className="flex items-center gap-4">
           <div className="space-y-2">
-            <label htmlFor="page-id" className="block text-sm font-medium">目标页面</label>
+            <label htmlFor="page-id" className="block text-sm font-medium text-gray-700">目标页面</label>
             <Select value={String(pageId)} onValueChange={(v) => setPageId(Number(v))}>
               <SelectTrigger id="page-id">
                 <SelectValue placeholder="选择页面" />
@@ -101,7 +103,7 @@ export function TextTemplatesPage({ devices, onPushText }: Props) {
         <button
           type="submit"
           disabled={(!title.trim() && !body.trim()) || pushing}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+          className="px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300 shadow-sm transition"
         >
           {pushing ? "推送中..." : "推送"}
         </button>

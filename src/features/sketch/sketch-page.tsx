@@ -129,21 +129,23 @@ export function SketchPage({ devices, onPushSketch }: Props) {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">涂鸦推送</h2>
-          <p className="text-sm text-gray-500">在画布上自由绘制，然后推送到设备。</p>
+      <header className="rounded-lg bg-gradient-to-r from-purple-50 to-violet-50 px-4 py-3 border border-purple-100">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">涂鸦推送</h2>
+            <p className="text-sm text-gray-500">在画布上自由绘制，然后推送到设备。</p>
+          </div>
         </div>
-      </div>
+      </header>
 
       <div className="flex gap-6">
         {/* 工具栏 */}
-        <div className="flex flex-col gap-3 p-3 rounded-xl border border-gray-200 bg-white/85 shadow-sm">
+        <div className="flex flex-col gap-3 p-3 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50/50 to-white shadow-sm">
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setTool("brush")}
-              className={`p-2 rounded-md ${tool === "brush" ? "bg-blue-600 text-white" : "bg-gray-200 hover:bg-gray-300"}`}
+              className={`p-2 rounded-md transition ${tool === "brush" ? "bg-purple-500 text-white shadow-sm" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}
               title="画笔"
             >
               <Paintbrush size={18} />
@@ -151,7 +153,7 @@ export function SketchPage({ devices, onPushSketch }: Props) {
             <button
               type="button"
               onClick={() => setTool("eraser")}
-              className={`p-2 rounded-md ${tool === "eraser" ? "bg-blue-600 text-white" : "bg-gray-200 hover:bg-gray-300"}`}
+              className={`p-2 rounded-md transition ${tool === "eraser" ? "bg-purple-500 text-white shadow-sm" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}
               title="橡皮擦"
             >
               <Eraser size={18} />
@@ -166,7 +168,7 @@ export function SketchPage({ devices, onPushSketch }: Props) {
               max="20"
               value={brushSize}
               onChange={(e) => setBrushSize(Number(e.target.value))}
-              className="w-full"
+              className="w-full accent-purple-500"
             />
             <span className="text-xs text-gray-500">{brushSize}px</span>
           </div>
@@ -174,7 +176,7 @@ export function SketchPage({ devices, onPushSketch }: Props) {
           <button
             type="button"
             onClick={clearCanvas}
-            className="px-3 py-1.5 text-sm bg-gray-200 rounded-md hover:bg-gray-300"
+            className="px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition"
           >
             清空
           </button>
@@ -186,7 +188,7 @@ export function SketchPage({ devices, onPushSketch }: Props) {
             ref={canvasRef}
             width={400}
             height={300}
-            className="border border-gray-300 rounded-md cursor-crosshair bg-white"
+            className="border border-purple-200 rounded-md cursor-crosshair bg-white shadow-sm"
             onMouseDown={startDrawing}
             onMouseMove={draw}
             onMouseUp={stopDrawing}
@@ -210,7 +212,7 @@ export function SketchPage({ devices, onPushSketch }: Props) {
               type="button"
               onClick={handlePush}
               disabled={isPushing}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+              className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:cursor-not-allowed disabled:bg-purple-300 shadow-sm transition"
             >
               {isPushing ? "推送中..." : "推送"}
             </button>

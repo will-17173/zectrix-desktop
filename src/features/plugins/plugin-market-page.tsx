@@ -238,21 +238,21 @@ export function PluginMarketPage({
 
   return (
     <section className="space-y-4">
-      <header>
-        <h2 className="text-lg font-semibold">插件市场</h2>
+      <header className="rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border border-blue-100">
+        <h2 className="text-lg font-semibold text-gray-900">插件市场</h2>
         <p className="text-sm text-gray-500">
           插件支持单次推送和创建循环任务，推送到设备指定页面。
         </p>
       </header>
 
       <Tabs defaultValue="builtin" className="w-full">
-        <TabsList>
-          <TabsTrigger value="builtin">内置插件</TabsTrigger>
-          <TabsTrigger value="custom">自定义插件</TabsTrigger>
-          <TabsTrigger value="tasks">任务管理</TabsTrigger>
+        <TabsList className="bg-gray-100/80">
+          <TabsTrigger value="builtin" className="data-[state=active]:!bg-blue-500 data-[state=active]:!text-white data-[state=active]:!shadow-sm">内置插件</TabsTrigger>
+          <TabsTrigger value="custom" className="data-[state=active]:!bg-indigo-500 data-[state=active]:!text-white data-[state=active]:!shadow-sm">自定义插件</TabsTrigger>
+          <TabsTrigger value="tasks" className="data-[state=active]:!bg-emerald-500 data-[state=active]:!text-white data-[state=active]:!shadow-sm">任务管理</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="builtin" className="rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
+        <TabsContent value="builtin" className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/50 to-white p-4 shadow-sm">
           <p className="mb-4 text-sm text-gray-500">
             内置插件数量正在开发中，欢迎给作者 Bilibili up{' '}
             <a
@@ -283,21 +283,21 @@ export function PluginMarketPage({
           )}
         </TabsContent>
 
-        <TabsContent value="custom" className="rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
+        <TabsContent value="custom" className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/50 to-white p-4 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-3">
             <p className="text-sm text-gray-500">管理你自己编写的设备推送插件。</p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setUsageDialogOpen(true)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+                className="rounded-md border border-indigo-300 px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 hover:border-indigo-400"
               >
                 使用方法
               </button>
               <button
                 type="button"
                 onClick={handleNewPlugin}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+                className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-600 shadow-sm"
               >
                 新增插件
               </button>
@@ -305,8 +305,8 @@ export function PluginMarketPage({
           </div>
 
           {customPlugins.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500">
-              暂无自定义插件
+            <div className="rounded-lg border border-dashed border-indigo-300 bg-indigo-50/30 px-4 py-6 text-sm text-indigo-500">
+              暂无自定义插件，点击"新增插件"开始创建
             </div>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
@@ -325,17 +325,32 @@ export function PluginMarketPage({
           )}
         </TabsContent>
 
-        <TabsContent value="tasks" className="rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm">
+        <TabsContent value="tasks" className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-white p-4 shadow-sm">
           <p className="mb-4 text-sm text-gray-500">已创建的任务会按固定间隔将插件结果推送到设备页面。</p>
           {pluginLoopTasks.length === 0 ? (
-            <p className="text-sm text-gray-500">暂无循环任务</p>
+            <div className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/30 px-4 py-6 text-sm text-emerald-500">
+              暂无循环任务
+            </div>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {pluginLoopTasks.map((task) => (
-                <article key={task.id} className="rounded-lg border border-gray-200 bg-white px-4 py-4 shadow-sm">
-                  <div className="text-sm font-semibold text-gray-900">{task.name}</div>
+                <article key={task.id} className="rounded-lg border border-emerald-200 bg-white px-4 py-4 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-semibold text-gray-900">{task.name}</div>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      task.status === "running"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : task.status === "idle"
+                        ? "bg-gray-100 text-gray-600"
+                        : task.status === "error"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {task.status === "running" ? "运行中" : task.status === "idle" ? "已停止" : task.status === "error" ? "错误" : "已完成"}
+                    </span>
+                  </div>
                   <p className="mt-1 text-sm text-gray-500">
-                    {`第 ${task.pageId} 页 · 每 ${task.intervalSeconds} 秒 · ${task.status}`}
+                    {`第 ${task.pageId} 页 · 每 ${Math.floor(task.intervalSeconds / 60)} 分钟`}
                   </p>
                   {task.errorMessage ? (
                     <p className="mt-2 text-sm text-red-600">{task.errorMessage}</p>
@@ -344,21 +359,21 @@ export function PluginMarketPage({
                     <button
                       type="button"
                       onClick={() => void handleStartLoopTask(task.id)}
-                      className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+                      className="rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-600 shadow-sm"
                     >
                       启动
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleStopLoopTask(task.id)}
-                      className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+                      className="rounded-md border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-600 transition hover:bg-amber-50"
                     >
                       停止
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleDeleteLoopTask(task.id)}
-                      className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-red-400 hover:text-red-600"
+                      className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
                     >
                       删除
                     </button>
@@ -542,10 +557,13 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
   }
 
   return (
-    <article className="flex flex-col rounded-lg border border-gray-200 bg-white px-4 py-4 shadow-sm">
+    <article className="flex flex-col rounded-lg border border-blue-200 bg-white px-4 py-4 shadow-sm hover:shadow-md transition">
       <div className="flex-1">
-        <div className="text-sm font-semibold text-gray-900">{name}</div>
-        <p className="mt-1 text-sm text-gray-500">{description || "暂无描述"}</p>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+          <div className="text-sm font-semibold text-gray-900">{name}</div>
+        </div>
+        <p className="mt-1 text-sm text-gray-500 pl-3.5">{description || "暂无描述"}</p>
         {/* 配置选项 */}
         {config && config.length > 0 && (
           <div className="mt-2 space-y-2">
@@ -617,7 +635,7 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
           <button
             type="button"
             onClick={handleCreateLoop}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+            className="rounded-md border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
           >
             循环
           </button>
@@ -626,7 +644,7 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
           type="button"
           onClick={handlePush}
           disabled={pushing}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
           {pushing ? "推送中..." : "推送一次"}
         </button>
@@ -667,27 +685,30 @@ function CustomPluginCard({
 
   return (
     <article
-      className={`rounded-lg border px-4 py-4 transition ${
+      className={`rounded-lg border px-4 py-4 transition shadow-sm hover:shadow-md ${
         isEditing
-          ? "border-blue-400 bg-blue-50/50 shadow-sm"
-          : "border-gray-200 bg-white shadow-sm"
+          ? "border-indigo-400 bg-indigo-50/80 ring-2 ring-indigo-200"
+          : "border-indigo-200 bg-white"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-gray-900">{plugin.name}</div>
-          <p className="mt-1 text-sm text-gray-500">{plugin.description || "暂无描述"}</p>
+          <div className="flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${isEditing ? "bg-indigo-500" : "bg-indigo-400"}`}></div>
+            <div className="text-sm font-semibold text-gray-900">{plugin.name}</div>
+          </div>
+          <p className="mt-1 text-sm text-gray-500 pl-3.5">{plugin.description || "暂无描述"}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {isEditing ? (
-            <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
+            <span className="rounded-full bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700">
               编辑中
             </span>
           ) : null}
           <button
             type="button"
             onClick={onEdit}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+            className="rounded-md border border-indigo-300 px-3 py-1.5 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50"
           >
             编辑
           </button>
@@ -722,14 +743,14 @@ function CustomPluginCard({
           <button
             type="button"
             onClick={() => onCreateLoop(pageId, intervalSeconds)}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+            className="rounded-md border border-indigo-300 px-3 py-1.5 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50"
           >
             循环
           </button>
           <button
             type="button"
             onClick={onDelete}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:border-red-400 hover:text-red-600"
+            className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
           >
             删除
           </button>
@@ -738,7 +759,7 @@ function CustomPluginCard({
           type="button"
           onClick={handlePush}
           disabled={pushing}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
           {pushing ? "推送中..." : "推送一次"}
         </button>
