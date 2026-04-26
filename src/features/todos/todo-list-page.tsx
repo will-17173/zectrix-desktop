@@ -4,6 +4,7 @@ import type { SyncState } from "../sync/sync-status";
 import { toast } from "../../components/ui/toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../components/ui/dialog";
+import { useAnalytics } from "../../hooks/useAnalytics";
 
 type Device = { deviceId: string; alias: string; board: string };
 
@@ -64,6 +65,7 @@ export function TodoListPage({
   onUpdateTodo,
   onPushTodo,
 }: Props) {
+  const { trackTodoCreate, trackTodoComplete, trackTodoDelete, trackPushText } = useAnalytics();
   const [todos, setTodos] = useState<TodoRecord[]>(initialTodos);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -109,6 +111,7 @@ export function TodoListPage({
         setEditingTodo(null);
       } else {
         const created = await onCreateTodo(input);
+        trackTodoCreate(created.localId);
         setTodos((prev) => [created, ...prev].filter((t) => !t.deleted));
       }
       resetForm();
@@ -120,11 +123,15 @@ export function TodoListPage({
 
   async function handleToggle(localId: string) {
     const updated = await onToggleTodo(localId);
+    if (updated.status === 1) {
+      trackTodoComplete(updated.localId);
+    }
     setTodos((prev) => prev.map((t) => (t.localId === updated.localId ? updated : t)));
   }
 
   async function handleDelete(localId: string) {
     await onDeleteTodo(localId);
+    trackTodoDelete(localId);
     setTodos((prev) => prev.filter((t) => t.localId !== localId && !t.deleted));
   }
 
@@ -155,6 +162,7 @@ export function TodoListPage({
     setPushingId(localId);
     try {
       await onPushTodo(localId, target);
+      trackPushText(target);
       toast.success("待办推送成功");
     } catch (e) {
       toast.error(`推送失败: ${e instanceof Error ? e.message : String(e)}`);

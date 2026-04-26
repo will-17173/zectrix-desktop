@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { trackPageView } from "../lib/analytics";
+import { useAnalytics } from "../hooks/useAnalytics";
 import { AppSidebar } from "../components/layout/app-sidebar";
 import { AppToolbar } from "../components/layout/app-toolbar";
 import { Toaster, toast } from "../components/ui/toast";
@@ -88,6 +90,7 @@ const sectionTitles: Record<string, string> = {
 };
 
 export default function App() {
+  const { trackPushText, trackPushImage } = useAnalytics();
   const [state, setState] = useState<BootstrapState>(emptyState);
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [stockQuotes, setStockQuotes] = useState<StockQuote[]>([]);
@@ -105,6 +108,11 @@ export default function App() {
       document.documentElement.classList.remove("theme-shell");
     };
   }, []);
+
+  // Track page views for analytics
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
 
   function reload() {
     void loadBootstrapState().then(setState);
@@ -230,7 +238,10 @@ export default function App() {
       return (
         <TextTemplatesPage
           devices={state.devices}
-          onPushText={pushText}
+          onPushText={(title, body, deviceId, pageId) => {
+            trackPushText(deviceId);
+            return pushText(title, body, deviceId, pageId);
+          }}
         />
       );
     }
@@ -245,9 +256,10 @@ export default function App() {
             reload();
             return t;
           }}
-          onPushTemplate={(templateId, deviceId, pageId) =>
-            pushImageTemplate(templateId, deviceId, pageId)
-          }
+          onPushTemplate={(templateId, deviceId, pageId) => {
+            trackPushImage(deviceId);
+            return pushImageTemplate(templateId, deviceId, pageId);
+          }}
           onDeleteTemplate={async (templateId) => {
             await deleteImageTemplate(templateId);
             reload();
@@ -276,9 +288,10 @@ export default function App() {
       return (
         <SketchPage
           devices={state.devices}
-          onPushSketch={(dataUrl, deviceId, pageId) =>
-            pushSketch(dataUrl, deviceId, pageId)
-          }
+          onPushSketch={(dataUrl, deviceId, pageId) => {
+            trackPushImage(deviceId);
+            return pushSketch(dataUrl, deviceId, pageId);
+          }}
         />
       );
     }
@@ -286,7 +299,10 @@ export default function App() {
       return (
         <FreeLayoutPage
           devices={state.devices}
-          onPushText={pushFreeLayoutText}
+          onPushText={(text, fontSize, deviceId, pageId) => {
+            trackPushText(deviceId);
+            return pushFreeLayoutText(text, fontSize, deviceId, pageId);
+          }}
         />
       );
     }
@@ -309,7 +325,10 @@ export default function App() {
               stockWatchlist: prev.stockWatchlist.filter((stock) => stock.code !== code),
             }));
           }}
-          onPushStocks={pushStockQuotes}
+          onPushStocks={(deviceId, pageId) => {
+            trackPushText(deviceId);
+            return pushStockQuotes(deviceId, pageId);
+          }}
           onFetchQuotes={async () => {
             const quotes = await fetchStockQuotes();
             setStockQuotes(quotes);
