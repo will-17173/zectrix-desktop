@@ -542,12 +542,13 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
   }
 
   return (
-    <article className="rounded-lg border border-gray-200 bg-white px-4 py-4 shadow-sm">
-      <div className="text-sm font-semibold text-gray-900">{name}</div>
-      <p className="mt-1 text-sm text-gray-500">{description || "暂无描述"}</p>
-      {/* 配置选项 */}
-      {config && config.length > 0 && (
-        <div className="mt-2 space-y-2">
+    <article className="flex flex-col rounded-lg border border-gray-200 bg-white px-4 py-4 shadow-sm">
+      <div className="flex-1">
+        <div className="text-sm font-semibold text-gray-900">{name}</div>
+        <p className="mt-1 text-sm text-gray-500">{description || "暂无描述"}</p>
+        {/* 配置选项 */}
+        {config && config.length > 0 && (
+          <div className="mt-2 space-y-2">
           {config.map((opt) => {
             const isInput = opt.inputType === "text";
             if (isInput) {
@@ -586,6 +587,7 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
           })}
         </div>
       )}
+      </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Select value={String(pageId)} onValueChange={(v) => setPageId(Number(v))}>
