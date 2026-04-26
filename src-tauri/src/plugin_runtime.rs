@@ -17,7 +17,7 @@ pub async fn run_plugin_code(
     let code = code.to_owned();
     let execution = tokio::task::spawn_blocking(move || run_plugin_code_blocking(&code, config));
 
-    match tokio::time::timeout(Duration::from_secs(20), execution).await {
+    match tokio::time::timeout(Duration::from_secs(360), execution).await {
         Ok(joined) => match joined {
             Ok(result) => result,
             Err(error) => anyhow::bail!("插件执行失败: {error}"),
@@ -62,6 +62,9 @@ fn install_helpers<'js>(ctx: Ctx<'js>) -> anyhow::Result<()> {
     globals.set("fetchBase64", Function::new(ctx.clone(), fetch_base64_js)?)?;
     globals.set("fetchBase64WithHeaders", Function::new(ctx.clone(), fetch_base64_with_headers_js)?)?;
     globals.set("generateQrCode", Function::new(ctx.clone(), generate_qrcode_js)?)?;
+    globals.set("postJson", Function::new(ctx.clone(), post_json_js)?)?;
+    globals.set("postJsonWithHeaders", Function::new(ctx.clone(), post_json_with_headers_js)?)?;
+    globals.set("sleep", Function::new(ctx.clone(), sleep_js)?)?;
 
     Ok(())
 }
@@ -175,6 +178,59 @@ fn generate_qrcode_blocking(text: &str) -> anyhow::Result<String> {
 
     let b64 = BASE64.encode(&buffer);
     Ok(format!("data:image/png;base64,{b64}"))
+}
+
+fn post_json_js<'js>(ctx: Ctx<'js>, url: String, body_str: String) -> rquickjs::Result<Value<'js>> {
+    let body: serde_json::Value = serde_json::from_str(&body_str)
+        .map_err(|error| Exception::throw_message(&ctx, &format!("JSON 解析失败: {}", error)))?;
+    let json = post_json_blocking(&url, body, None)
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))?;
+
+    rquickjs_serde::to_value(ctx.clone(), json)
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))
+}
+
+fn post_json_with_headers_js<'js>(ctx: Ctx<'js>, url: String, body_str: String, headers: HashMap<String, String>) -> rquickjs::Result<Value<'js>> {
+    let body: serde_json::Value = serde_json::from_str(&body_str)
+        .map_err(|error| Exception::throw_message(&ctx, &format!("JSON 解析失败: {}", error)))?;
+    let json = post_json_blocking(&url, body, Some(headers))
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))?;
+
+    rquickjs_serde::to_value(ctx.clone(), json)
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))
+}
+
+fn post_json_blocking(url: &str, body: serde_json::Value, headers: Option<HashMap<String, String>>) -> anyhow::Result<serde_json::Value> {
+    let mut request = blocking_client()?.post(url).json(&body);
+
+    if let Some(h) = headers {
+        for (key, value) in h {
+            request = request.header(&key, &value);
+        }
+    }
+
+    let response = request.send()?;
+    let status = response.status();
+
+    if !status.is_success() {
+        let error_text = response.text()?;
+        anyhow::bail!("POST 请求失败 ({}): {}", status, error_text);
+    }
+
+    Ok(response.json()?)
+}
+
+fn sleep_js<'js>(ctx: Ctx<'js>, ms: i32) -> rquickjs::Result<()> {
+    sleep_blocking(ms)
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))
+}
+
+fn sleep_blocking(ms: i32) -> anyhow::Result<()> {
+    if ms < 0 {
+        anyhow::bail!("sleep 时间不能为负数");
+    }
+    std::thread::sleep(Duration::from_millis(ms as u64));
+    Ok(())
 }
 
 fn blocking_client() -> anyhow::Result<Client> {

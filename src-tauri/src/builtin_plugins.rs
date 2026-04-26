@@ -25,56 +25,236 @@ pub struct BuiltinPlugin {
     pub id: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
     pub code: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub config: Vec<PluginConfigOption>,
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub supports_loop: bool,
+}
+
+impl Default for BuiltinPlugin {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            description: String::new(),
+            code: String::new(),
+            config: vec![],
+            supports_loop: true,
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn default_true() -> bool {
+    true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
     vec![
         BuiltinPlugin {
+            id: "comfyui-image".to_string(),
+            name: "ComfyUI 生图".to_string(),
+            description: "调用 ComfyUI 生成图片并推送到设备".to_string(),
+            config: vec![
+                PluginConfigOption {
+                    name: "comfyuiUrl".to_string(),
+                    label: "ComfyUI 地址".to_string(),
+                    input_type: Some("text".to_string()),
+                    options: vec![],
+                    default: "http://127.0.0.1:8188".to_string(),
+                },
+                PluginConfigOption {
+                    name: "workflow".to_string(),
+                    label: "工作流 JSON".to_string(),
+                    input_type: Some("textarea".to_string()),
+                    options: vec![],
+                    default: "".to_string(),
+                },
+                PluginConfigOption {
+                    name: "promptNodeId".to_string(),
+                    label: "提示词节点 ID".to_string(),
+                    input_type: Some("text".to_string()),
+                    options: vec![],
+                    default: "6".to_string(),
+                },
+                PluginConfigOption {
+                    name: "promptField".to_string(),
+                    label: "提示词字段名".to_string(),
+                    input_type: Some("text".to_string()),
+                    options: vec![],
+                    default: "text".to_string(),
+                },
+                PluginConfigOption {
+                    name: "prompt".to_string(),
+                    label: "提示词".to_string(),
+                    input_type: Some("text".to_string()),
+                    options: vec![],
+                    default: "".to_string(),
+                },
+            ],
+            code: r#"(async function() {
+    const comfyuiUrl = config.comfyuiUrl || 'http://127.0.0.1:8188';
+    const workflowStr = config.workflow;
+    const promptNodeId = config.promptNodeId || '6';
+    const promptField = config.promptField || 'text';
+    const prompt = config.prompt;
+
+    if (!workflowStr || workflowStr.trim() === '') {
+        throw new Error('请先点击「配置」按钮填写工作流 JSON');
+    }
+    if (!prompt || prompt.trim() === '') {
+        throw new Error('请输入提示词');
+    }
+
+    // 解析工作流 JSON
+    let workflow;
+    try {
+        workflow = JSON.parse(workflowStr);
+    } catch (e) {
+        throw new Error('工作流 JSON 格式错误: ' + e.message);
+    }
+
+    // 检查工作流结构
+    const nodeIds = Object.keys(workflow);
+    if (nodeIds.length === 0) {
+        throw new Error('工作流为空');
+    }
+
+    // 检查是否是 API 格式
+    const firstNode = workflow[nodeIds[0]];
+    if (!firstNode.class_type) {
+        throw new Error('请使用 "Save (API Format)" 导出工作流');
+    }
+
+    // 检查并替换提示词
+    if (!workflow[promptNodeId]) {
+        throw new Error('找不到提示词节点 "' + promptNodeId + '"，可用节点: ' + nodeIds.join(', '));
+    }
+    if (!workflow[promptNodeId].inputs) {
+        throw new Error('节点 ' + promptNodeId + ' 没有 inputs 字段');
+    }
+
+    workflow[promptNodeId].inputs[promptField] = prompt;
+
+    // 提交工作流
+    let result;
+    try {
+        result = await postJson(comfyuiUrl + '/prompt', JSON.stringify({ prompt: workflow }));
+    } catch (e) {
+        throw new Error('无法连接 ComfyUI (' + comfyuiUrl + ')');
+    }
+
+    const promptId = result.prompt_id;
+    if (!promptId) {
+        throw new Error('提交失败');
+    }
+
+    // 轮询等待生成完成
+    let outputs = null;
+    let retries = 0;
+    const maxRetries = 300;
+
+    while (retries < maxRetries) {
+        await sleep(1000);
+        retries++;
+
+        const history = await fetchJson(comfyuiUrl + '/history/' + promptId);
+
+        if (history[promptId]) {
+            if (history[promptId].status && history[promptId].status.status_str === 'error') {
+                throw new Error('生成失败');
+            }
+
+            if (history[promptId].outputs) {
+                const out = history[promptId].outputs;
+                const hasImages = Object.keys(out).some(k => out[k].images && out[k].images.length > 0);
+                if (hasImages) {
+                    outputs = out;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!outputs) {
+        throw new Error('生成超时 (' + retries + '秒)');
+    }
+
+    // 提取图片
+    let imageDataUrl = null;
+    for (const nodeId of Object.keys(outputs)) {
+        const nodeOutput = outputs[nodeId];
+        if (nodeOutput.images && nodeOutput.images.length > 0) {
+            const img = nodeOutput.images[0];
+            let url = comfyuiUrl + '/view?filename=' + encodeURIComponent(img.filename) + '&type=' + (img.type || 'output');
+            if (img.subfolder) url += '&subfolder=' + encodeURIComponent(img.subfolder);
+            imageDataUrl = await fetchBase64(url);
+            break;
+        }
+    }
+
+    if (!imageDataUrl) {
+        throw new Error('未找到图片输出');
+    }
+
+    return { type: 'image', imageDataUrl: imageDataUrl, title: 'ComfyUI 生图' };
+})()"#
+                .to_string(),
+            supports_loop: false,
+            ..Default::default()
+        },
+        BuiltinPlugin {
             id: "cat-random".to_string(),
             name: "随机显示猫猫".to_string(),
             description: "随机获取一张猫猫图片并推送到设备".to_string(),
             code: r#"(async function() {
-const data = await fetchJson("https://cataas.com/cat?width=400&height=300&json=true");
-const imageDataUrl = await fetchBase64(data.url);
-return { type: "image", imageDataUrl: imageDataUrl, title: "随机猫猫" };
+    const data = await fetchJson("https://cataas.com/cat?width=400&height=300&json=true");
+    const imageDataUrl = await fetchBase64(data.url);
+    return { type: "image", imageDataUrl: imageDataUrl, title: "随机猫猫" };
 })()"#
                 .to_string(),
             config: vec![],
+            ..Default::default()
         },
         BuiltinPlugin {
             id: "dog-random".to_string(),
             name: "随机显示狗狗".to_string(),
             description: "随机获取一张狗狗图片并推送到设备".to_string(),
             code: r#"(async function() {
-let data;
-let retries = 0;
-while (retries < 10) {
-    data = await fetchJson("https://random.dog/woof.json");
-    if (data.url.match(/\.(jpg|jpeg|png|gif)$/i)) {
-        break;
+    let data;
+    let retries = 0;
+    while (retries < 10) {
+        data = await fetchJson("https://random.dog/woof.json");
+        if (data.url.match(/\.(jpg|jpeg|png|gif)$/i)) {
+            break;
+        }
+        retries++;
     }
-    retries++;
-}
-const imageDataUrl = await fetchBase64(data.url);
-return { type: "image", imageDataUrl: imageDataUrl, title: "随机狗狗" };
+    const imageDataUrl = await fetchBase64(data.url);
+    return { type: "image", imageDataUrl: imageDataUrl, title: "随机狗狗" };
 })()"#
                 .to_string(),
             config: vec![],
+            ..Default::default()
         },
         BuiltinPlugin {
             id: "duck-random".to_string(),
             name: "随机显示鸭子".to_string(),
             description: "随机获取一张鸭子图片并推送到设备".to_string(),
             code: r#"(async function() {
-const data = await fetchJson("https://random-d.uk/api/random");
-const imageDataUrl = await fetchBase64(data.url);
-return { type: "image", imageDataUrl: imageDataUrl, title: "随机鸭子" };
+    const data = await fetchJson("https://random-d.uk/api/random");
+    const imageDataUrl = await fetchBase64(data.url);
+    return { type: "image", imageDataUrl: imageDataUrl, title: "随机鸭子" };
 })()"#
                 .to_string(),
             config: vec![],
+            ..Default::default()
         },
         BuiltinPlugin {
             id: "waifu-random".to_string(),
@@ -93,18 +273,19 @@ return { type: "image", imageDataUrl: imageDataUrl, title: "随机鸭子" };
                 },
             ],
             code: r#"(async function() {
-const type = config.type || 'sfw';
-const sfwCategories = ['waifu', 'neko', 'shinobu', 'megumin', 'bully', 'cuddle', 'cry', 'hug', 'awoo', 'kiss', 'lick', 'pat', 'smug', 'bonk', 'yeet', 'blush', 'smile', 'wave', 'highfive', 'handhold', 'nom', 'bite', 'glomp', 'slap', 'kill', 'kick', 'happy', 'wink', 'poke', 'dance', 'cringe'];
-const nsfwCategories = ['waifu', 'neko', 'trap', 'blowjob'];
-const categories = type === 'sfw' ? sfwCategories : nsfwCategories;
-const category = categories[Math.floor(Math.random() * categories.length)];
-const data = await fetchJson(`https://api.waifu.pics/${type}/${category}`);
-const url = data.url;
-if (!url) throw new Error('未获取到图片');
-const imageDataUrl = await fetchBase64(url);
-return { type: 'image', imageDataUrl: imageDataUrl, title: '随机 Waifu' };
+    const type = config.type || 'sfw';
+    const sfwCategories = ['waifu', 'neko', 'shinobu', 'megumin', 'bully', 'cuddle', 'cry', 'hug', 'awoo', 'kiss', 'lick', 'pat', 'smug', 'bonk', 'yeet', 'blush', 'smile', 'wave', 'highfive', 'handhold', 'nom', 'bite', 'glomp', 'slap', 'kill', 'kick', 'happy', 'wink', 'poke', 'dance', 'cringe'];
+    const nsfwCategories = ['waifu', 'neko', 'trap', 'blowjob'];
+    const categories = type === 'sfw' ? sfwCategories : nsfwCategories;
+    const category = categories[Math.floor(Math.random() * categories.length)];
+    const data = await fetchJson('https://api.waifu.pics/' + type + '/' + category);
+    const url = data.url;
+    if (!url) throw new Error('未获取到图片');
+    const imageDataUrl = await fetchBase64(url);
+    return { type: 'image', imageDataUrl: imageDataUrl, title: '随机 Waifu' };
 })()"#
                 .to_string(),
+            ..Default::default()
         },
         BuiltinPlugin {
             id: "text-to-qrcode".to_string(),
@@ -120,12 +301,13 @@ return { type: 'image', imageDataUrl: imageDataUrl, title: '随机 Waifu' };
                 },
             ],
             code: r#"(async function() {
-const text = config.text;
-if (!text) throw new Error('请输入文本内容');
-const imageDataUrl = await generateQrCode(text);
-return { type: 'image', imageDataUrl: imageDataUrl, title: '二维码' };
+    const text = config.text;
+    if (!text) throw new Error('请输入文本内容');
+    const imageDataUrl = await generateQrCode(text);
+    return { type: 'image', imageDataUrl: imageDataUrl, title: '二维码' };
 })()"#
                 .to_string(),
+            ..Default::default()
         },
         BuiltinPlugin {
             id: "poetry-random".to_string(),
@@ -133,12 +315,13 @@ return { type: 'image', imageDataUrl: imageDataUrl, title: '二维码' };
             description: "随机获取一首古诗词并推送到设备".to_string(),
             config: vec![],
             code: r#"(async function() {
-const data = await fetchJson("https://v1.jinrishici.com/all.json");
-const content = data.content.replace(/，/g, '，\n').replace(/。/g, '。\n').replace(/！/g, '！\n').replace(/？/g, '？\n').replace(/；/g, '；\n');
-const text = `「${data.origin}」\n${data.author}\n\n${content}`;
-return { type: 'text', text: text, title: '随机古诗词', fontSize: 24 };
+    const data = await fetchJson("https://v1.jinrishici.com/all.json");
+    const content = data.content.replace(/，/g, '，\n').replace(/。/g, '。\n').replace(/！/g, '！\n').replace(/？/g, '？\n').replace(/；/g, '；\n');
+    const text = '「' + data.origin + '」\n' + data.author + '\n\n' + content;
+    return { type: 'text', text: text, title: '随机古诗词', fontSize: 24 };
 })()"#
                 .to_string(),
+            ..Default::default()
         },
         BuiltinPlugin {
             id: "github-actions".to_string(),
@@ -172,55 +355,51 @@ return { type: 'text', text: text, title: '随机古诗词', fontSize: 24 };
                 },
             ],
             code: r#"(async function() {
-const token = config.token;
-const repo = config.repo;
-const limit = parseInt(config.limit) || 10;
+    const token = config.token;
+    const repo = config.repo;
+    const limit = parseInt(config.limit) || 10;
 
-if (!token) throw new Error('请配置 GitHub Token');
-if (!repo) throw new Error('请配置仓库 (owner/repo)');
+    if (!token) throw new Error('请配置 GitHub Token');
+    if (!repo) throw new Error('请配置仓库 (owner/repo)');
 
-const headers = {
-    'Authorization': `Bearer ${token}`,
-    'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': 'Zectrix-Note-Plugin'
-};
+    const headers = {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'Zectrix-Note-Plugin'
+    };
 
-// 获取仓库信息
-const repoInfo = await fetchJsonWithHeaders(`https://api.github.com/repos/${repo}`, headers);
-const stars = repoInfo.stargazers_count || 0;
-const forks = repoInfo.forks_count || 0;
-const openIssues = repoInfo.open_issues_count || 0;
-const lastPush = new Date(repoInfo.pushed_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const repoInfo = await fetchJsonWithHeaders('https://api.github.com/repos/' + repo, headers);
+    const stars = repoInfo.stargazers_count || 0;
+    const forks = repoInfo.forks_count || 0;
+    const openIssues = repoInfo.open_issues_count || 0;
+    const lastPush = new Date(repoInfo.pushed_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-// 获取 Actions 运行记录
-const actionsData = await fetchJsonWithHeaders(`https://api.github.com/repos/${repo}/actions/runs?per_page=${limit}`, headers);
+    const actionsData = await fetchJsonWithHeaders('https://api.github.com/repos/' + repo + '/actions/runs?per_page=' + limit, headers);
+    const runs = actionsData.workflow_runs || [];
 
-const runs = actionsData.workflow_runs || [];
+    const repoSummary = 'Stars: ' + stars + ' | Forks: ' + forks + ' | Issues: ' + openIssues + ' | 最近推送: ' + lastPush;
 
-const repoSummary = `Stars: ${stars} | Forks: ${forks} | Issues: ${openIssues} | 最近推送: ${lastPush}`;
+    if (runs.length === 0) {
+        return { type: 'text', text: repo + '\n' + repoSummary + '\n\n暂无 Actions 运行记录', title: 'GitHub Actions' };
+    }
 
-if (runs.length === 0) {
-    return { type: 'text', text: `${repo}\n${repoSummary}\n\n暂无 Actions 运行记录`, title: 'GitHub Actions' };
-}
+    const lines = runs.map(run => {
+        const statusIcon = run.status === 'completed'
+            ? (run.conclusion === 'success' ? '✓' : '✗')
+            : (run.status === 'in_progress' ? '⏳' : '○');
+        const statusText = run.status === 'completed' ? run.conclusion || 'unknown' : run.status;
+        const branch = run.head_branch;
+        const name = run.name.substring(0, 20);
+        const time = new Date(run.created_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        return statusIcon + ' ' + name + ' [' + branch + '] ' + statusText + ' ' + time;
+    });
 
-const lines = runs.map(run => {
-    const statusIcon = run.status === 'completed'
-        ? (run.conclusion === 'success' ? '✓' : '✗')
-        : (run.status === 'in_progress' ? '⏳' : '○');
-    const statusText = run.status === 'completed'
-        ? run.conclusion || 'unknown'
-        : run.status;
-    const branch = run.head_branch;
-    const name = run.name.substring(0, 20);
-    const time = new Date(run.created_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    return `${statusIcon} ${name} [${branch}] ${statusText} ${time}`;
-});
-
-const text = `GitHub: ${repo}\n${repoSummary}\n\n${lines.join('\n')}`;
-return { type: 'text', text: text, title: 'GitHub Actions', fontSize: 18 };
+    const text = 'GitHub: ' + repo + '\n' + repoSummary + '\n\n' + lines.join('\n');
+    return { type: 'text', text: text, title: 'GitHub Actions', fontSize: 18 };
 })()"#
                 .to_string(),
+            ..Default::default()
         },
     ]
 }

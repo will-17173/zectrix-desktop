@@ -272,9 +272,11 @@ export function PluginMarketPage({
               {builtinPlugins.map((plugin) => (
                 <PluginCard
                   key={plugin.id}
+                  pluginId={plugin.id}
                   name={plugin.name}
                   description={plugin.description}
                   config={plugin.config}
+                  supportsLoop={plugin.supportsLoop}
                   onPush={(pageId, config) => handleBuiltinPush(plugin, pageId, config)}
                   onCreateLoop={(pageId, intervalSeconds, config) => handleBuiltinCreateLoop(plugin, pageId, intervalSeconds, config)}
                 />
@@ -523,21 +525,32 @@ return {
 }
 
 type PluginCardProps = {
+  pluginId: string;
   name: string;
   description: string;
   config?: PluginConfigOption[];
+  supportsLoop?: boolean;
   onPush: (pageId: number, config?: Record<string, string>) => Promise<void>;
   onCreateLoop: (pageId: number, intervalSeconds: number, config?: Record<string, string>) => void;
 };
 
-function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginCardProps) {
+// 配置项分组：哪些放在配置对话框里，哪些直接显示
+const CONFIG_HIDDEN_KEYS = ["comfyuiUrl", "workflow", "promptNodeId", "promptField"];
+
+// 使用插件 ID 作为 localStorage key，更稳定
+function getStorageKey(pluginId: string) {
+  return `plugin-config-${pluginId}`;
+}
+
+function PluginCard({ name, description, config, supportsLoop = true, onPush, onCreateLoop, pluginId }: PluginCardProps & { pluginId: string }) {
   const [pageId, setPageId] = useState(1);
   const [intervalSeconds, setIntervalSeconds] = useState(60);
   const [pushing, setPushing] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
   // 从 localStorage 加载配置，使用默认值填充
   const [configValues, setConfigValues] = useState<Record<string, string>>(() => {
     if (!config) return {};
-    const saved = localStorage.getItem(`plugin-config-${name}`);
+    const saved = localStorage.getItem(getStorageKey(pluginId));
     const savedValues = saved ? JSON.parse(saved) : {};
     return config.reduce((acc, opt) => {
       acc[opt.name] = savedValues[opt.name] ?? opt.default;
@@ -545,11 +558,16 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
     }, {} as Record<string, string>);
   });
 
+  // 分离可见配置和隐藏配置
+  const visibleConfig = config?.filter(opt => !CONFIG_HIDDEN_KEYS.includes(opt.name)) || [];
+  const hiddenConfig = config?.filter(opt => CONFIG_HIDDEN_KEYS.includes(opt.name)) || [];
+  const hasHiddenConfig = hiddenConfig.length > 0;
+
   // 保存配置到 localStorage
   function updateConfigValue(key: string, value: string) {
     setConfigValues((prev) => {
       const next = { ...prev, [key]: value };
-      localStorage.setItem(`plugin-config-${name}`, JSON.stringify(next));
+      localStorage.setItem(getStorageKey(pluginId), JSON.stringify(next));
       return next;
     });
   }
@@ -573,12 +591,21 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
           <div className="text-sm font-semibold text-gray-900">{name}</div>
+          {hasHiddenConfig && (
+            <button
+              type="button"
+              onClick={() => setConfigDialogOpen(true)}
+              className="rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+            >
+              配置
+            </button>
+          )}
         </div>
         <p className="mt-1 text-sm text-gray-500 pl-3.5">{description || "暂无描述"}</p>
-        {/* 配置选项 */}
-        {config && config.length > 0 && (
+        {/* 只显示可见的配置选项 */}
+        {visibleConfig.length > 0 && (
           <div className="mt-2 space-y-2">
-          {config.map((opt) => {
+          {visibleConfig.map((opt) => {
             const isInput = opt.inputType && opt.inputType !== "";
             const inputType = opt.inputType === "password" ? "password" : "text";
             if (isInput) {
@@ -632,25 +659,29 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
               ))}
             </SelectContent>
           </Select>
-          <Select value={String(intervalSeconds)} onValueChange={(v) => setIntervalSeconds(Number(v))}>
-            <SelectTrigger className="w-28 h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {INTERVAL_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={String(opt.value)}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <button
-            type="button"
-            onClick={handleCreateLoop}
-            className="rounded-md border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
-          >
-            循环
-          </button>
+          {supportsLoop && (
+            <Select value={String(intervalSeconds)} onValueChange={(v) => setIntervalSeconds(Number(v))}>
+              <SelectTrigger className="w-28 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERVAL_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {supportsLoop && (
+            <button
+              type="button"
+              onClick={handleCreateLoop}
+              className="rounded-md border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
+            >
+              循环
+            </button>
+          )}
         </div>
         <button
           type="button"
@@ -661,6 +692,55 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
           {pushing ? "推送中..." : "推送一次"}
         </button>
       </div>
+
+      {/* 配置对话框 */}
+      <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{name} - 配置</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {hiddenConfig.map((opt) => {
+              const isTextarea = opt.inputType === "textarea";
+              const inputType = opt.inputType === "password" ? "password" : "text";
+              if (isTextarea) {
+                return (
+                  <div key={opt.name} className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">{opt.label}</label>
+                    <textarea
+                      value={configValues[opt.name] || opt.default}
+                      onChange={(e) => updateConfigValue(opt.name, e.target.value)}
+                      className="w-full min-h-32 rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                      spellCheck={false}
+                      placeholder="粘贴从 ComfyUI 导出的工作流 JSON..."
+                    />
+                  </div>
+                );
+              }
+              return (
+                <div key={opt.name} className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 shrink-0 w-28">{opt.label}</label>
+                  <input
+                    type={inputType}
+                    value={configValues[opt.name] || opt.default}
+                    onChange={(e) => updateConfigValue(opt.name, e.target.value)}
+                    className="flex-1 h-9 rounded-md border border-gray-300 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              );
+            })}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setConfigDialogOpen(false)}
+                className="rounded-md bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+              >
+                完成
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </article>
   );
 }
