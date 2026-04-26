@@ -65,8 +65,8 @@ async fn execute_image_loop_push(
     let image_path = std::path::Path::new(folder_path).join(image_file);
 
     // 加载并处理图片为 400x300
-    // Use Reader::new().with_guessed_format() to auto-detect format from content, not extension
-    let img = image::io::Reader::open(&image_path)
+    // Use ImageReader::open().with_guessed_format() to auto-detect format from content, not extension
+    let img = image::ImageReader::open(&image_path)
         .map_err(|e| anyhow::anyhow!("无法打开图片 {}: {}", image_file, e))?
         .with_guessed_format()
         .map_err(|e| anyhow::anyhow!("无法识别图片格式 {}: {}", image_file, e))?
@@ -1361,10 +1361,7 @@ impl AppState {
         Ok(())
     }
 
-    fn save_page_cache(&self, cache: &Vec<PageCacheRecord>) -> anyhow::Result<()> {
-        save_json(&self.data_dir.join("page_cache.json"), cache)
-    }
-
+    
     fn save_page_cache_record(&self, record: PageCacheRecord) -> anyhow::Result<()> {
         let path = self.data_dir.join("page_cache.json");
         let mut cache: Vec<PageCacheRecord> = if path.exists() {
