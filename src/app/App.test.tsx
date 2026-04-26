@@ -100,12 +100,11 @@ vi.mock("../lib/tauri", () => ({
   removeStockWatch: vi.fn(),
   pushStockQuotes: vi.fn(),
   pushText: vi.fn(),
+  listBuiltinPlugins: vi.fn().mockResolvedValue([]),
   saveCustomPlugin: vi.fn(),
   deleteCustomPlugin: vi.fn(),
-  runPluginOnce: vi.fn(),
   pushPluginOnce: vi.fn(),
   createPluginLoopTask: vi.fn(),
-  updatePluginLoopTask: vi.fn(),
   deletePluginLoopTask: vi.fn(),
   startPluginLoopTask: vi.fn(),
   stopPluginLoopTask: vi.fn(),
@@ -293,7 +292,7 @@ test("renders the plugin market route from the sidebar", async () => {
   await userEvent.click(pluginLink);
 
   expect(await screen.findByText("暂无内置插件")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "保存插件" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "新增插件" })).toBeInTheDocument();
 });
 
 test("renders the stock push route from the sidebar", async () => {

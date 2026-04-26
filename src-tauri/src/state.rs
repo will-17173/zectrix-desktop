@@ -788,7 +788,18 @@ impl AppState {
     ) -> anyhow::Result<PluginRunResult> {
         let plugin = match plugin_kind {
             "custom" => self.find_custom_plugin(plugin_id)?,
-            "builtin" => anyhow::bail!("内置插件尚未接入"),
+            "builtin" => {
+                let builtin = crate::builtin_plugins::find_builtin_plugin(plugin_id)
+                    .ok_or_else(|| anyhow::anyhow!("内置插件不存在: {plugin_id}"))?;
+                CustomPluginRecord {
+                    id: 0,
+                    name: builtin.name,
+                    description: builtin.description,
+                    code: builtin.code,
+                    created_at: String::new(),
+                    updated_at: String::new(),
+                }
+            }
             other => anyhow::bail!("未知插件类型: {other}"),
         };
 
@@ -806,7 +817,18 @@ impl AppState {
     ) -> anyhow::Result<()> {
         let plugin = match plugin_kind {
             "custom" => self.find_custom_plugin(plugin_id)?,
-            "builtin" => anyhow::bail!("内置插件尚未接入"),
+            "builtin" => {
+                let builtin = crate::builtin_plugins::find_builtin_plugin(plugin_id)
+                    .ok_or_else(|| anyhow::anyhow!("内置插件不存在: {plugin_id}"))?;
+                CustomPluginRecord {
+                    id: 0,
+                    name: builtin.name,
+                    description: builtin.description,
+                    code: builtin.code,
+                    created_at: String::new(),
+                    updated_at: String::new(),
+                }
+            }
             other => anyhow::bail!("未知插件类型: {other}"),
         };
 
@@ -1115,8 +1137,64 @@ impl AppState {
         task.updated_at = chrono::Utc::now().to_rfc3339();
 
         let updated = task.clone();
+        let interval_seconds = task.interval_seconds;
         self.save_plugin_loop_tasks(&tasks)?;
+
+        // Spawn background task
+        let data_dir = self.data_dir.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) =
+                crate::plugin_tasks::run_plugin_loop_task_tick(data_dir.clone(), task_id).await
+            {
+                eprintln!("[plugin-loop] 首次推送失败: {e}");
+                return;
+            }
+
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(
+                    interval_seconds as u64,
+                ))
+                .await;
+
+                let state = crate::state::AppState {
+                    data_dir: data_dir.clone(),
+                };
+                let still_running = state
+                    .list_plugin_loop_tasks()
+                    .ok()
+                    .and_then(|tasks| tasks.into_iter().find(|t| t.id == task_id))
+                    .map(|t| t.status == "running")
+                    .unwrap_or(false);
+
+                if !still_running {
+                    break;
+                }
+
+                if let Err(e) =
+                    crate::plugin_tasks::run_plugin_loop_task_tick(data_dir.clone(), task_id).await
+                {
+                    eprintln!("[plugin-loop] 推送失败: {e}");
+                }
+            }
+        });
+
         Ok(updated)
+    }
+
+    pub fn stop_all_plugin_loop_tasks_on_boot(&self) -> anyhow::Result<()> {
+        let mut tasks = self.load_plugin_loop_tasks()?;
+        let mut changed = false;
+        for task in &mut tasks {
+            if task.status == "running" {
+                task.status = "idle".to_string();
+                task.updated_at = chrono::Utc::now().to_rfc3339();
+                changed = true;
+            }
+        }
+        if changed {
+            self.save_plugin_loop_tasks(&tasks)?;
+        }
+        Ok(())
     }
 
     pub fn stop_plugin_loop_task(&self, task_id: i64) -> anyhow::Result<PluginLoopTaskRecord> {

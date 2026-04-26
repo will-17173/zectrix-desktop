@@ -36,21 +36,20 @@ test("creates a custom plugin", async () => {
   render(
     <PluginMarketPage
       devices={devices}
+      builtinPlugins={[]}
       customPlugins={[]}
       pluginLoopTasks={[]}
       onSavePlugin={save}
       onDeletePlugin={vi.fn()}
-      onRunPlugin={vi.fn()}
       onPushPlugin={vi.fn()}
       onCreateLoopTask={vi.fn()}
-      onUpdateLoopTask={vi.fn()}
       onDeleteLoopTask={vi.fn()}
       onStartLoopTask={vi.fn()}
       onStopLoopTask={vi.fn()}
     />,
   );
 
-  await user.click(screen.getByRole("button", { name: "新建插件" }));
+  await user.click(screen.getByRole("button", { name: "新增插件" }));
   await user.type(screen.getByLabelText("插件名称"), "天气");
   await user.type(screen.getByLabelText("插件描述"), "天气插件");
   await user.clear(screen.getByLabelText("插件代码"));
@@ -67,6 +66,7 @@ test("pushes a custom plugin to selected page", async () => {
   render(
     <PluginMarketPage
       devices={devices}
+      builtinPlugins={[]}
       customPlugins={[
         {
           id: 7,
@@ -80,10 +80,8 @@ test("pushes a custom plugin to selected page", async () => {
       pluginLoopTasks={[]}
       onSavePlugin={vi.fn()}
       onDeletePlugin={vi.fn()}
-      onRunPlugin={vi.fn()}
       onPushPlugin={push}
       onCreateLoopTask={vi.fn()}
-      onUpdateLoopTask={vi.fn()}
       onDeleteLoopTask={vi.fn()}
       onStartLoopTask={vi.fn()}
       onStopLoopTask={vi.fn()}
@@ -114,6 +112,7 @@ test("creates a loop task for a custom plugin", async () => {
   render(
     <PluginMarketPage
       devices={devices}
+      builtinPlugins={[]}
       customPlugins={[
         {
           id: 7,
@@ -127,17 +126,15 @@ test("creates a loop task for a custom plugin", async () => {
       pluginLoopTasks={[]}
       onSavePlugin={vi.fn()}
       onDeletePlugin={vi.fn()}
-      onRunPlugin={vi.fn()}
       onPushPlugin={vi.fn()}
       onCreateLoopTask={createLoopTask}
-      onUpdateLoopTask={vi.fn()}
       onDeleteLoopTask={vi.fn()}
       onStartLoopTask={vi.fn()}
       onStopLoopTask={vi.fn()}
     />,
   );
 
-  await user.click(screen.getByRole("button", { name: "创建循环任务" }));
+  await user.click(screen.getByRole("button", { name: "循环" }));
 
   expect(createLoopTask).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -174,14 +171,13 @@ test("renders loop tasks and delegates task actions", async () => {
   render(
     <PluginMarketPage
       devices={devices}
+      builtinPlugins={[]}
       customPlugins={[]}
       pluginLoopTasks={[task]}
       onSavePlugin={vi.fn()}
       onDeletePlugin={vi.fn()}
-      onRunPlugin={vi.fn()}
       onPushPlugin={vi.fn()}
       onCreateLoopTask={vi.fn()}
-      onUpdateLoopTask={vi.fn()}
       onDeleteLoopTask={deleteLoopTask}
       onStartLoopTask={startLoopTask}
       onStopLoopTask={stopLoopTask}

@@ -1,4 +1,5 @@
 mod api;
+mod builtin_plugins;
 mod commands;
 mod models;
 pub mod plugin_output;
@@ -25,6 +26,9 @@ pub fn run() {
             }
             if let Err(e) = state.stop_stock_push_task_on_boot() {
                 eprintln!("[startup] failed to stop stock push task: {e}");
+            }
+            if let Err(e) = state.stop_all_plugin_loop_tasks_on_boot() {
+                eprintln!("[startup] failed to stop plugin loop tasks: {e}");
             }
             Ok(())
         })
@@ -64,6 +68,7 @@ pub fn run() {
             commands::stocks::start_stock_push_task,
             commands::stocks::stop_stock_push_task,
             commands::plugins::list_custom_plugins,
+            commands::plugins::list_builtin_plugins,
             commands::plugins::save_custom_plugin,
             commands::plugins::delete_custom_plugin,
             commands::plugins::run_plugin_once,

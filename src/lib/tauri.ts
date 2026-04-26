@@ -297,6 +297,13 @@ export type CustomPluginRecord = {
   updatedAt: string;
 };
 
+export type BuiltinPlugin = {
+  id: string;
+  name: string;
+  description: string;
+  code: string;
+};
+
 export type CustomPluginInput = {
   id?: number;
   name: string;
@@ -342,6 +349,10 @@ export async function getPageCacheList(deviceId: string): Promise<PageCacheRecor
 
 export async function deletePageCache(deviceId: string, pageId: number): Promise<void> {
   return invoke("delete_page_cache", { deviceId, pageId });
+}
+
+export async function listBuiltinPlugins(): Promise<BuiltinPlugin[]> {
+  return invoke<BuiltinPlugin[]>("list_builtin_plugins");
 }
 
 export async function saveCustomPlugin(input: CustomPluginInput): Promise<CustomPluginRecord> {

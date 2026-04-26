@@ -6,6 +6,11 @@ pub fn list_custom_plugins(
 }
 
 #[tauri::command]
+pub fn list_builtin_plugins() -> Result<Vec<crate::builtin_plugins::BuiltinPlugin>, String> {
+    Ok(crate::builtin_plugins::list_builtin_plugins())
+}
+
+#[tauri::command]
 pub fn save_custom_plugin(
     state: tauri::State<'_, crate::state::AppState>,
     input: crate::models::CustomPluginInput,

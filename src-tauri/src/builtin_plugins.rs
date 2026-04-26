@@ -1,0 +1,28 @@
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BuiltinPlugin {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub code: String,
+}
+
+pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
+    vec![BuiltinPlugin {
+        id: "cat-random".to_string(),
+        name: "随机显示猫猫".to_string(),
+        description: "随机获取一张猫猫图片并推送到设备".to_string(),
+        code: r#"const data = await fetchJson("https://cataas.com/cat?width=400&height=300&json=true");
+const imageDataUrl = await fetchBase64(data.url);
+return { type: "image", imageDataUrl: imageDataUrl, title: "随机猫猫" };"#
+            .to_string(),
+    }]
+}
+
+pub fn find_builtin_plugin(id: &str) -> Option<BuiltinPlugin> {
+    list_builtin_plugins()
+        .into_iter()
+        .find(|plugin| plugin.id == id)
+}

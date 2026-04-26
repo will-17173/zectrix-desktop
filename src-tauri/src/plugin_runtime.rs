@@ -1,3 +1,5 @@
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use reqwest::blocking::Client;
 use rquickjs::promise::MaybePromise;
 use rquickjs::{
@@ -43,6 +45,7 @@ fn install_helpers<'js>(ctx: Ctx<'js>) -> anyhow::Result<()> {
     globals.set("echoJson", Function::new(ctx.clone(), echo_json)?)?;
     globals.set("fetchJson", Function::new(ctx.clone(), fetch_json_js)?)?;
     globals.set("fetchText", Function::new(ctx.clone(), fetch_text_js)?)?;
+    globals.set("fetchBase64", Function::new(ctx.clone(), fetch_base64_js)?)?;
 
     Ok(())
 }
@@ -84,6 +87,31 @@ fn fetch_text_blocking(url: &str) -> anyhow::Result<String> {
     }
 
     Ok(response.text()?)
+}
+
+fn fetch_base64_js<'js>(ctx: Ctx<'js>, url: String) -> rquickjs::Result<String> {
+    fetch_base64_blocking(&url)
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))
+}
+
+fn fetch_base64_blocking(url: &str) -> anyhow::Result<String> {
+    let response = blocking_client()?.get(url).send()?;
+    let status = response.status();
+
+    if !status.is_success() {
+        anyhow::bail!("HTTP 请求失败: {status}");
+    }
+
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .to_string();
+
+    let bytes = response.bytes()?;
+    let b64 = BASE64.encode(bytes);
+    Ok(format!("data:{content_type};base64,{b64}"))
 }
 
 fn blocking_client() -> anyhow::Result<Client> {

@@ -24,7 +24,7 @@ import {
   deleteImageTemplate,
   deletePluginLoopTask,
   getImageThumbnail,
-  runPluginOnce,
+  listBuiltinPlugins,
   loadBootstrapState,
   pushPluginOnce,
   pushFreeLayoutText,
@@ -41,7 +41,6 @@ import {
   startPluginLoopTask,
   stopPluginLoopTask,
   toggleTodoStatus,
-  updatePluginLoopTask,
   updateLocalTodo,
   createImageLoopTask,
   updateImageLoopTask,
@@ -55,6 +54,7 @@ import {
   stopStockPushTask,
   fetchStockQuotes,
   type BootstrapState,
+  type BuiltinPlugin,
   type ImageLoopTaskInput,
   type StockQuote,
 } from "../lib/tauri";
@@ -91,10 +91,12 @@ export default function App() {
   const [state, setState] = useState<BootstrapState>(emptyState);
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [stockQuotes, setStockQuotes] = useState<StockQuote[]>([]);
+  const [builtinPlugins, setBuiltinPlugins] = useState<BuiltinPlugin[]>([]);
   const location = useLocation();
 
   useEffect(() => {
     void loadBootstrapState().then(setState);
+    void listBuiltinPlugins().then(setBuiltinPlugins);
   }, []);
 
   useEffect(() => {
@@ -153,6 +155,7 @@ export default function App() {
       return (
         <PluginMarketPage
           devices={state.devices}
+          builtinPlugins={builtinPlugins}
           customPlugins={state.customPlugins}
           pluginLoopTasks={state.pluginLoopTasks}
           onSavePlugin={async (input) => {
@@ -164,19 +167,11 @@ export default function App() {
             await deleteCustomPlugin(pluginId);
             reload();
           }}
-          onRunPlugin={(pluginKind, pluginId) =>
-            runPluginOnce(pluginKind, pluginId)
-          }
           onPushPlugin={(pluginKind, pluginId, deviceId, pageId) =>
             pushPluginOnce(pluginKind, pluginId, deviceId, pageId)
           }
           onCreateLoopTask={async (input) => {
             const task = await createPluginLoopTask(input);
-            reload();
-            return task;
-          }}
-          onUpdateLoopTask={async (taskId, input) => {
-            const task = await updatePluginLoopTask(taskId, input);
             reload();
             return task;
           }}
