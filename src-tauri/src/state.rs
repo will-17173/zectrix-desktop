@@ -907,31 +907,14 @@ impl AppState {
                 title: text.title,
                 text: Some(text.text),
                 image_data_url: None,
-                preview_png_base64: None,
                 metadata: text.metadata,
             }),
-            crate::plugin_output::PluginOutput::TextImage(text_image) => {
-                let rendered_png =
-                    crate::text_image::render_text_to_png(&text_image.text, &text_image.style)?;
-
-                Ok(PluginRunResult {
-                    output_type: "textImage".to_string(),
-                    title: text_image.title,
-                    text: Some(text_image.text),
-                    image_data_url: None,
-                    preview_png_base64: Some(
-                        base64::engine::general_purpose::STANDARD.encode(rendered_png),
-                    ),
-                    metadata: text_image.metadata,
-                })
-            }
             crate::plugin_output::PluginOutput::Image(image) => Ok(PluginRunResult {
                 output_type: "image".to_string(),
                 title: image.title,
                 text: None,
                 image_data_url: (!image.image_data_url.trim().is_empty())
                     .then_some(image.image_data_url),
-                preview_png_base64: None,
                 metadata: image.metadata,
             }),
         }
@@ -977,34 +960,6 @@ impl AppState {
                         "text",
                         text.title.as_deref(),
                         text.metadata.as_ref(),
-                        &now,
-                    )),
-                    pushed_at: now,
-                };
-                self.save_page_cache_record(record)?;
-            }
-            crate::plugin_output::PluginOutput::TextImage(text_image) => {
-                let rendered_png =
-                    crate::text_image::render_text_to_png(&text_image.text, &text_image.style)?;
-                crate::api::client::push_image(&api_key, device_id, rendered_png.clone(), page_id)
-                    .await?;
-
-                let thumbnail_filename =
-                    format!("thumb_{}_{}.png", device_id.replace(':', "_"), page_id);
-                let thumbnail = self.save_image_thumbnail(&rendered_png, &thumbnail_filename)?;
-
-                let record = PageCacheRecord {
-                    device_id: device_id.to_string(),
-                    page_id,
-                    content_type: "plugin_image".to_string(),
-                    thumbnail: Some(thumbnail),
-                    metadata: Some(Self::plugin_cache_metadata(
-                        plugin_name,
-                        plugin_kind,
-                        plugin_id,
-                        "textImage",
-                        text_image.title.as_deref(),
-                        text_image.metadata.as_ref(),
                         &now,
                     )),
                     pushed_at: now,
@@ -3580,7 +3535,11 @@ mod tests {
             .unwrap();
 
         let result = state
-            .run_plugin_once("custom", &created.id.to_string(), std::collections::HashMap::new())
+            .run_plugin_once(
+                "custom",
+                &created.id.to_string(),
+                std::collections::HashMap::new(),
+            )
             .await
             .unwrap();
 
@@ -3589,7 +3548,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn run_plugin_once_returns_text_image_preview_shape_for_custom_plugin() {
+    async fn run_plugin_once_rejects_text_image_output_for_custom_plugin() {
         let dir = tempfile::tempdir().unwrap();
         let state = test_state(&dir);
 
@@ -3598,18 +3557,23 @@ mod tests {
                 id: None,
                 name: "图文插件".into(),
                 description: "返回图文".into(),
-                code: "(async function() { return { type: 'textImage', text: 'hello plugin' }; })()"
-                    .into(),
+                code:
+                    "(async function() { return { type: 'textImage', text: 'hello plugin' }; })()"
+                        .into(),
             })
             .unwrap();
 
         let result = state
-            .run_plugin_once("custom", &created.id.to_string(), std::collections::HashMap::new())
+            .run_plugin_once(
+                "custom",
+                &created.id.to_string(),
+                std::collections::HashMap::new(),
+            )
             .await
-            .unwrap();
+            .unwrap_err()
+            .to_string();
 
-        assert_eq!(result.output_type, "textImage");
-        assert!(result.preview_png_base64.is_some());
+        assert!(result.contains("不支持的插件输出 type: textImage"));
     }
 
     #[test]

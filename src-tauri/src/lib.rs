@@ -5,7 +5,6 @@ mod models;
 pub mod plugin_output;
 pub mod plugin_runtime;
 pub mod plugin_tasks;
-pub mod text_image;
 mod state;
 mod stock_quote;
 mod storage;

@@ -326,11 +326,10 @@ export type CustomPluginInput = {
 };
 
 export type PluginRunResult = {
-  outputType: "text" | "textImage" | "image";
+  outputType: "text" | "image";
   title?: string;
   text?: string;
   imageDataUrl?: string;
-  previewPngBase64?: string;
   metadata?: unknown;
 };
 

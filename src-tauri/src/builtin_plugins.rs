@@ -134,8 +134,9 @@ return { type: 'image', imageDataUrl: imageDataUrl, title: '二维码' };
             config: vec![],
             code: r#"(async function() {
 const data = await fetchJson("https://v1.jinrishici.com/all.json");
-const text = `「${data.origin}」\n${data.author}\n\n${data.content}`;
-return { type: 'textImage', text: text, title: '随机古诗词', style: { fontSize: 36 } };
+const content = data.content.replace(/，/g, '，\n').replace(/。/g, '。\n').replace(/！/g, '！\n').replace(/？/g, '？\n').replace(/；/g, '；\n');
+const text = `「${data.origin}」\n${data.author}\n\n${content}`;
+return { type: 'text', text: text, title: '随机古诗词', fontSize: 24 };
 })()"#
                 .to_string(),
         },

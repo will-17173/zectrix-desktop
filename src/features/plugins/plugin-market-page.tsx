@@ -116,7 +116,7 @@ export function PluginMarketPage({
 
   async function handleSave() {
     try {
-      const saved = await onSavePlugin(draft);
+      await onSavePlugin(draft);
       toast.success("插件已保存");
       setEditing(null);
       setDraft(createEmptyDraft());
