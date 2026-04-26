@@ -180,8 +180,8 @@ export default function App() {
             await deleteCustomPlugin(pluginId);
             reload();
           }}
-          onPushPlugin={(pluginKind, pluginId, deviceId, pageId) =>
-            pushPluginOnce(pluginKind, pluginId, deviceId, pageId)
+          onPushPlugin={(pluginKind, pluginId, deviceId, pageId, config) =>
+            pushPluginOnce(pluginKind, pluginId, deviceId, pageId, config)
           }
           onCreateLoopTask={async (input) => {
             const task = await createPluginLoopTask(input);

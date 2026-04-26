@@ -57,8 +57,10 @@ fn install_helpers<'js>(ctx: Ctx<'js>) -> anyhow::Result<()> {
 
     globals.set("echoJson", Function::new(ctx.clone(), echo_json)?)?;
     globals.set("fetchJson", Function::new(ctx.clone(), fetch_json_js)?)?;
+    globals.set("fetchJsonWithHeaders", Function::new(ctx.clone(), fetch_json_with_headers_js)?)?;
     globals.set("fetchText", Function::new(ctx.clone(), fetch_text_js)?)?;
     globals.set("fetchBase64", Function::new(ctx.clone(), fetch_base64_js)?)?;
+    globals.set("fetchBase64WithHeaders", Function::new(ctx.clone(), fetch_base64_with_headers_js)?)?;
     globals.set("generateQrCode", Function::new(ctx.clone(), generate_qrcode_js)?)?;
 
     Ok(())
@@ -69,7 +71,15 @@ fn echo_json<'js>(value: Value<'js>) -> Value<'js> {
 }
 
 fn fetch_json_js<'js>(ctx: Ctx<'js>, url: String) -> rquickjs::Result<Value<'js>> {
-    let json = fetch_json_blocking(&url)
+    let json = fetch_json_blocking(&url, None)
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))?;
+
+    rquickjs_serde::to_value(ctx.clone(), json)
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))
+}
+
+fn fetch_json_with_headers_js<'js>(ctx: Ctx<'js>, url: String, headers: HashMap<String, String>) -> rquickjs::Result<Value<'js>> {
+    let json = fetch_json_blocking(&url, Some(headers))
         .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))?;
 
     rquickjs_serde::to_value(ctx.clone(), json)
@@ -81,8 +91,16 @@ fn fetch_text_js<'js>(ctx: Ctx<'js>, url: String) -> rquickjs::Result<String> {
         .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))
 }
 
-fn fetch_json_blocking(url: &str) -> anyhow::Result<serde_json::Value> {
-    let response = blocking_client()?.get(url).send()?;
+fn fetch_json_blocking(url: &str, headers: Option<HashMap<String, String>>) -> anyhow::Result<serde_json::Value> {
+    let mut request = blocking_client()?.get(url);
+
+    if let Some(h) = headers {
+        for (key, value) in h {
+            request = request.header(&key, &value);
+        }
+    }
+
+    let response = request.send()?;
     let status = response.status();
 
     if !status.is_success() {
@@ -104,12 +122,25 @@ fn fetch_text_blocking(url: &str) -> anyhow::Result<String> {
 }
 
 fn fetch_base64_js<'js>(ctx: Ctx<'js>, url: String) -> rquickjs::Result<String> {
-    fetch_base64_blocking(&url)
+    fetch_base64_blocking(&url, None)
         .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))
 }
 
-fn fetch_base64_blocking(url: &str) -> anyhow::Result<String> {
-    let response = blocking_client()?.get(url).send()?;
+fn fetch_base64_with_headers_js<'js>(ctx: Ctx<'js>, url: String, headers: HashMap<String, String>) -> rquickjs::Result<String> {
+    fetch_base64_blocking(&url, Some(headers))
+        .map_err(|error| Exception::throw_message(&ctx, &error.to_string()))
+}
+
+fn fetch_base64_blocking(url: &str, headers: Option<HashMap<String, String>>) -> anyhow::Result<String> {
+    let mut request = blocking_client()?.get(url);
+
+    if let Some(h) = headers {
+        for (key, value) in h {
+            request = request.header(&key, &value);
+        }
+    }
+
+    let response = request.send()?;
     let status = response.status();
 
     if !status.is_success() {

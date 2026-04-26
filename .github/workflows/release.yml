@@ -33,6 +33,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Extract changelog for current version
+        id: changelog
+        run: |
+          # Extract changelog content for the current version
+          VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')
+          # Use awk to extract content between version headers
+          CHANGELOG=$(awk -v ver="$VERSION" '
+            /^## \[/{ if (found) exit; if ($0 ~ "\\[" ver "\\]") found=1; next }
+            found { print }
+          ' CHANGELOG.md)
+          # Write to file for multiline output
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -73,8 +89,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Zectrix Desktop ${{ github.ref_name }}"
-          releaseBody: "See the assets below to download and install this version."
+          releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: false
           prerelease: false
-          generateReleaseNotes: true
           args: ${{ matrix.args }}

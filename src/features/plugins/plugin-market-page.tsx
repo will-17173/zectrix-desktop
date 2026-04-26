@@ -534,14 +534,25 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
   const [pageId, setPageId] = useState(1);
   const [intervalSeconds, setIntervalSeconds] = useState(60);
   const [pushing, setPushing] = useState(false);
-  // 初始化配置状态，使用默认值
+  // 从 localStorage 加载配置，使用默认值填充
   const [configValues, setConfigValues] = useState<Record<string, string>>(() => {
     if (!config) return {};
+    const saved = localStorage.getItem(`plugin-config-${name}`);
+    const savedValues = saved ? JSON.parse(saved) : {};
     return config.reduce((acc, opt) => {
-      acc[opt.name] = opt.default;
+      acc[opt.name] = savedValues[opt.name] ?? opt.default;
       return acc;
     }, {} as Record<string, string>);
   });
+
+  // 保存配置到 localStorage
+  function updateConfigValue(key: string, value: string) {
+    setConfigValues((prev) => {
+      const next = { ...prev, [key]: value };
+      localStorage.setItem(`plugin-config-${name}`, JSON.stringify(next));
+      return next;
+    });
+  }
 
   async function handlePush() {
     setPushing(true);
@@ -568,15 +579,16 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
         {config && config.length > 0 && (
           <div className="mt-2 space-y-2">
           {config.map((opt) => {
-            const isInput = opt.inputType === "text";
+            const isInput = opt.inputType && opt.inputType !== "";
+            const inputType = opt.inputType === "password" ? "password" : "text";
             if (isInput) {
               return (
                 <div key={opt.name} className="flex items-center gap-2">
                   <span className="text-xs text-gray-500 shrink-0">{opt.label}</span>
                   <input
-                    type="text"
+                    type={inputType}
                     value={configValues[opt.name] || opt.default}
-                    onChange={(e) => setConfigValues((prev) => ({ ...prev, [opt.name]: e.target.value }))}
+                    onChange={(e) => updateConfigValue(opt.name, e.target.value)}
                     className="flex-1 h-9 rounded-md border border-gray-300 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -587,9 +599,9 @@ function PluginCard({ name, description, config, onPush, onCreateLoop }: PluginC
                 <span className="text-xs text-gray-500">{opt.label}</span>
                 <Select
                   value={configValues[opt.name] || opt.default}
-                  onValueChange={(v) => setConfigValues((prev) => ({ ...prev, [opt.name]: v }))}
+                  onValueChange={(v) => updateConfigValue(opt.name, v)}
                 >
-                  <SelectTrigger className="w-[80px] h-9">
+                  <SelectTrigger className="w-[100px] h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
