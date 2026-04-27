@@ -741,13 +741,13 @@ function PluginCard({ name, description, config, supportsLoop = true, onPush, on
         <p className="mt-1 text-sm text-gray-500 pl-3.5">{description || "暂无描述"}</p>
         {/* 只显示可见的配置选项 */}
         {visibleConfig.length > 0 && (
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
           {visibleConfig.map((opt) => {
             const isInput = opt.inputType && opt.inputType !== "";
             const inputType = opt.inputType === "password" ? "password" : "text";
             if (isInput) {
               return (
-                <div key={opt.name} className="flex items-center gap-2">
+                <div key={opt.name} className="flex items-center gap-2 w-full">
                   <span className="text-xs text-gray-500 shrink-0">{opt.label}</span>
                   <input
                     type={inputType}
