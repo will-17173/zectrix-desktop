@@ -85,8 +85,8 @@ test("prefills new custom plugins with a complete async function template", asyn
   const code = screen.getByLabelText("插件代码") as HTMLTextAreaElement;
 
   expect(code.value).toContain("(async function()");
-  expect(code.value).toContain("// 用户代码开始");
-  expect(code.value).toContain("// 用户代码结束");
+  expect(code.value).toContain("QuickJS");
+  expect(code.value).toContain("fetchJson");
   expect(code.value).toContain("})()");
   expect(code.value).not.toContain("textImage");
 });
@@ -114,11 +114,12 @@ test("opens custom plugin usage instructions from the custom tab", async () => {
   await user.click(screen.getByRole("button", { name: "使用方法" }));
 
   expect(screen.getByRole("dialog", { name: "自定义插件使用方法" })).toBeInTheDocument();
-  expect(screen.getByText("插件代码会在异步函数中执行，可以返回文本或图片结果。")).toBeInTheDocument();
+  expect(screen.getByText("运行环境说明")).toBeInTheDocument();
+  expect(screen.getByText("内置函数")).toBeInTheDocument();
   expect(screen.getByText("返回格式")).toBeInTheDocument();
   expect(screen.getByText("文本示例")).toBeInTheDocument();
-  expect(screen.getByText("图片 URL 示例")).toBeInTheDocument();
-  expect(screen.getByText(/应用会先下载图片/)).toBeInTheDocument();
+  expect(screen.getByText("接口请求示例（正确方式）")).toBeInTheDocument();
+  expect(screen.getByText(/没有原生 fetch API/)).toBeInTheDocument();
   expect(screen.getByText("循环任务注意事项")).toBeInTheDocument();
 });
 
