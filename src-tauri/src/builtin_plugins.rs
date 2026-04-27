@@ -64,6 +64,7 @@ pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
             id: "comfyui-image".to_string(),
             name: "ComfyUI 生图".to_string(),
             description: "调用 ComfyUI 生成图片并推送到设备".to_string(),
+            category: "AI".to_string(),
             config: vec![
                 PluginConfigOption {
                     name: "comfyuiUrl".to_string(),
@@ -245,6 +246,7 @@ pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
             id: "cat-random".to_string(),
             name: "随机显示猫猫".to_string(),
             description: "随机获取一张猫猫图片并推送到设备".to_string(),
+            category: "图片".to_string(),
             code: r#"(async function() {
     const data = await fetchJson("https://cataas.com/cat?width=400&height=300&json=true");
     const imageDataUrl = await fetchBase64(data.url);
@@ -258,6 +260,7 @@ pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
             id: "dog-random".to_string(),
             name: "随机显示狗狗".to_string(),
             description: "随机获取一张狗狗图片并推送到设备".to_string(),
+            category: "图片".to_string(),
             code: r#"(async function() {
     let data;
     let retries = 0;
@@ -279,6 +282,7 @@ pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
             id: "duck-random".to_string(),
             name: "随机显示鸭子".to_string(),
             description: "随机获取一张鸭子图片并推送到设备".to_string(),
+            category: "图片".to_string(),
             code: r#"(async function() {
     const data = await fetchJson("https://random-d.uk/api/random");
     const imageDataUrl = await fetchBase64(data.url);
@@ -292,6 +296,7 @@ pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
             id: "waifu-random".to_string(),
             name: "随机显示 Waifu".to_string(),
             description: "随机获取一张动漫图片并推送到设备".to_string(),
+            category: "图片".to_string(),
             config: vec![
                 PluginConfigOption {
                     name: "type".to_string(),
@@ -323,6 +328,7 @@ pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
             id: "text-to-qrcode".to_string(),
             name: "文本转二维码".to_string(),
             description: "将输入的文本转换为二维码图片".to_string(),
+            category: "工具".to_string(),
             config: vec![
                 PluginConfigOption {
                     name: "text".to_string(),
@@ -345,6 +351,7 @@ pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
             id: "poetry-random".to_string(),
             name: "随机古诗词".to_string(),
             description: "随机获取一首古诗词并推送到设备".to_string(),
+            category: "文学".to_string(),
             config: vec![],
             code: r#"(async function() {
     const data = await fetchJson("https://v1.jinrishici.com/all.json");
@@ -359,6 +366,7 @@ pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
             id: "github-actions".to_string(),
             name: "GitHub Actions 监控".to_string(),
             description: "监控指定仓库的 GitHub Actions 运行状态".to_string(),
+            category: "编程".to_string(),
             config: vec![
                 PluginConfigOption {
                     name: "token".to_string(),
