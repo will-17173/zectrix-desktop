@@ -31,6 +31,8 @@ pub struct BuiltinPlugin {
     pub config: Vec<PluginConfigOption>,
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub supports_loop: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub category: String,
 }
 
 impl Default for BuiltinPlugin {
@@ -42,6 +44,7 @@ impl Default for BuiltinPlugin {
             code: String::new(),
             config: vec![],
             supports_loop: true,
+            category: String::new(),
         }
     }
 }
