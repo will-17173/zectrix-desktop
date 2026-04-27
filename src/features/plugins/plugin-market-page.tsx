@@ -26,9 +26,18 @@ import type {
 } from "../../lib/tauri";
 
 const DEFAULT_PLUGIN_CODE = `(async function() {
-  // 用户代码开始
+  // 插件代码在 QuickJS 环境中执行
+  // 请使用 fetchJson/fetchBase64/postJson 等内置函数，不要使用 fetch()
 
-  // 用户代码结束
+  // 示例：请求 API 并返回文本
+  // const data = await fetchJson("https://api.example.com/data");
+  // return { type: "text", text: data.message, title: "标题" };
+
+  // 示例：获取图片并返回
+  // const imageDataUrl = await fetchBase64("https://example.com/image.png");
+  // return { type: "image", imageDataUrl: imageDataUrl, title: "图片" };
+
+  return { type: "text", text: "请编写插件代码", title: "示例" };
 })()`;
 
 const PAGE_OPTIONS = [
@@ -489,9 +498,54 @@ export function PluginMarketPage({
 
           <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1 text-sm leading-6 text-gray-600">
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-900">执行方式</h3>
-              <p>插件代码会在异步函数中执行，可以返回文本或图片结果。</p>
-              <p>你可以在代码里使用标准 JavaScript 语法，适合生成固定文案、拼接时间信息、请求接口后整理成设备可读内容。</p>
+              <h3 className="text-sm font-semibold text-gray-900">运行环境说明</h3>
+              <p>
+                插件代码在 <strong>QuickJS</strong> 环境中执行，这是一个轻量级 JavaScript 引擎。
+                与浏览器或 Node.js 不同，QuickJS <strong>没有内置 fetch、DOM、setTimeout 等 API</strong>。
+              </p>
+              <p>
+                请使用下方提供的内置函数进行网络请求等操作。支持的语法为 ES2020 标准，
+                包括 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">async/await</code>、
+                <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">const/let</code>、
+                箭头函数、模板字符串等，但不支持某些较新的特性（如私有字段 #field）。
+              </p>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">内置函数</h3>
+              <p>以下函数已注入全局环境，可直接调用：</p>
+              <div className="rounded-lg bg-gray-50 p-3 space-y-2 text-xs">
+                <div>
+                  <code className="font-mono text-blue-700">fetchJson(url)</code> — GET 请求，返回解析后的 JSON 对象
+                </div>
+                <div>
+                  <code className="font-mono text-blue-700">fetchJsonWithHeaders(url, headers)</code> — GET 请求，带自定义 Headers
+                </div>
+                <div>
+                  <code className="font-mono text-blue-700">fetchText(url)</code> — GET 请求，返回原始文本
+                </div>
+                <div>
+                  <code className="font-mono text-blue-700">fetchBase64(url)</code> — GET 请求，返回 base64 编码的 Data URL（用于图片）
+                </div>
+                <div>
+                  <code className="font-mono text-blue-700">fetchBase64WithHeaders(url, headers)</code> — GET 图片并返回 base64，带 Headers
+                </div>
+                <div>
+                  <code className="font-mono text-blue-700">postJson(url, bodyJsonStr)</code> — POST JSON 数据，body 需为 JSON 字符串
+                </div>
+                <div>
+                  <code className="font-mono text-blue-700">postJsonWithHeaders(url, bodyJsonStr, headers)</code> — POST JSON，带 Headers
+                </div>
+                <div>
+                  <code className="font-mono text-blue-700">generateQrCode(text)</code> — 生成二维码，返回 PNG 格式的 base64 Data URL
+                </div>
+                <div>
+                  <code className="font-mono text-blue-700">sleep(ms)</code> — 同步等待指定毫秒数（注意：会阻塞执行）
+                </div>
+                <div>
+                  <code className="font-mono text-blue-700">config</code> — 用户配置对象，包含插件配置项的值
+                </div>
+              </div>
             </section>
 
             <section className="space-y-2">
@@ -500,46 +554,93 @@ export function PluginMarketPage({
                 返回文本时使用 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">{"{ type: \"text\", text: \"内容\" }"}</code>。
               </p>
               <p>
-                返回图片时使用 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">{"{ type: \"image\", image: \"data:image/png;base64,...\" }"}</code>。
+                返回图片时使用 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">{"{ type: \"image\", imageDataUrl: \"data:image/png;base64,...\" }"}</code>。
               </p>
               <p>
-                如果图片在网上，也可以返回 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">{"{ type: \"image\", imageUrl: \"https://example.com/card.png\" }"}</code>，
-                应用会先下载图片，再转换为设备需要的 PNG 推送。
+                图片也可以返回 URL，应用会自动下载：
+                <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">{"{ type: \"image\", imageUrl: \"https://...\" }"}</code>
               </p>
-              <p>返回值必须是对象；如果接口请求失败，建议返回一段可读的错误文本，方便在设备页面上排查。</p>
+              <p>可选字段：<code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">title</code>（标题）、<code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">fontSize</code>（字体大小）。</p>
             </section>
 
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-gray-900">文本示例</h3>
               <pre className="overflow-x-auto rounded-lg bg-gray-950 px-3 py-3 text-xs leading-5 text-gray-100">
-                <code>{`const now = new Date().toLocaleString();
-return {
-  type: "text",
-  text: \`当前时间：\${now}\`,
-};`}</code>
+                <code>{`(async function() {
+  const now = new Date().toLocaleString();
+  return {
+    type: "text",
+    text: "当前时间：" + now,
+    title: "时间播报"
+  };
+})()`}</code>
               </pre>
             </section>
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-900">接口请求示例</h3>
+              <h3 className="text-sm font-semibold text-gray-900">接口请求示例（正确方式）</h3>
               <pre className="overflow-x-auto rounded-lg bg-gray-950 px-3 py-3 text-xs leading-5 text-gray-100">
-                <code>{`const response = await fetch("https://example.com/api/status");
-const data = await response.json();
+                <code>{`(async function() {
+  // 使用 fetchJson 而不是 fetch！
+  const data = await fetchJson("https://api.example.com/status");
+  return {
+    type: "text",
+    text: "状态：" + data.message,
+    title: "状态监控"
+  };
+})()`}</code>
+              </pre>
+              <p className="text-xs text-red-500">
+                ⚠️ 注意：不要使用 <code className="font-mono">fetch()</code>，QuickJS 没有原生 fetch API。
+              </p>
+            </section>
 
-return {
-  type: "text",
-  text: \`状态：\${data.message}\`,
-};`}</code>
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">带 Headers 的请求示例</h3>
+              <pre className="overflow-x-auto rounded-lg bg-gray-950 px-3 py-3 text-xs leading-5 text-gray-100">
+                <code>{`(async function() {
+  const headers = {
+    "Authorization": "Bearer YOUR_TOKEN",
+    "User-Agent": "MyPlugin/1.0"
+  };
+  const data = await fetchJsonWithHeaders("https://api.github.com/user", headers);
+  return {
+    type: "text",
+    text: "用户：" + data.login,
+    title: "GitHub"
+  };
+})()`}</code>
               </pre>
             </section>
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-900">图片 URL 示例</h3>
+              <h3 className="text-sm font-semibold text-gray-900">图片示例</h3>
               <pre className="overflow-x-auto rounded-lg bg-gray-950 px-3 py-3 text-xs leading-5 text-gray-100">
-                <code>{`return {
-  type: "image",
-  imageUrl: "https://example.com/card.png",
-};`}</code>
+                <code>{`(async function() {
+  // 获取图片 URL 后转 base64
+  const data = await fetchJson("https://api.example.com/random-image");
+  const imageDataUrl = await fetchBase64(data.imageUrl);
+  return {
+    type: "image",
+    imageDataUrl: imageDataUrl,
+    title: "随机图片"
+  };
+})()`}</code>
+              </pre>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">POST 请求示例</h3>
+              <pre className="overflow-x-auto rounded-lg bg-gray-950 px-3 py-3 text-xs leading-5 text-gray-100">
+                <code>{`(async function() {
+  const body = JSON.stringify({ prompt: "Hello" });
+  const result = await postJson("https://api.example.com/generate", body);
+  return {
+    type: "text",
+    text: result.output,
+    title: "AI 生成"
+  };
+})()`}</code>
               </pre>
             </section>
 
@@ -547,7 +648,7 @@ return {
               <h3 className="text-sm font-semibold text-gray-900">循环任务注意事项</h3>
               <p>保存后可以在自定义插件列表里单次推送，也可以选择页面和间隔创建循环任务。</p>
               <p>循环任务会反复执行同一段插件代码，请避免写入耗时过长、频率过高或依赖不稳定接口的逻辑。</p>
-              <p>如果插件需要访问网络，请确认接口返回稳定，并给设备页面准备一个简短、可读的失败提示。</p>
+              <p>请求超时限制为 15 秒，插件总执行时间限制为 6 分钟。</p>
             </section>
           </div>
         </DialogContent>
