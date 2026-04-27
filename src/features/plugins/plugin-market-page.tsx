@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "../../components/ui/toast";
 import {
   Select,
@@ -96,7 +96,22 @@ export function PluginMarketPage({
   const [draft, setDraft] = useState<CustomPluginInput>(() => createEmptyDraft());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [usageDialogOpen, setUsageDialogOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("");
   const firstDevice = devices[0];
+
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    builtinPlugins.forEach(p => { if (p.category) cats.add(p.category); });
+    return [
+      { key: "", label: "全部" },
+      ...Array.from(cats).sort().map(c => ({ key: c, label: c })),
+    ];
+  }, [builtinPlugins]);
+
+  const filteredPlugins = useMemo(() => {
+    if (!selectedCategory) return builtinPlugins;
+    return builtinPlugins.filter(p => p.category === selectedCategory);
+  }, [builtinPlugins, selectedCategory]);
 
   function handleNewPlugin() {
     setEditing(null);
@@ -266,11 +281,27 @@ export function PluginMarketPage({
             </a>{' '}
             私信提出开发需求。
           </p>
-          {builtinPlugins.length === 0 ? (
+          <div className="mb-3 flex overflow-hidden rounded-md border border-gray-300">
+            {categories.map((cat) => (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => setSelectedCategory(cat.key)}
+                className={`border-r border-gray-300 px-3 py-1.5 text-xs font-medium last:border-r-0 ${
+                  selectedCategory === cat.key
+                    ? "bg-blue-500 text-white shadow-sm"
+                    : "bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          {filteredPlugins.length === 0 ? (
             <p className="text-sm text-gray-500">暂无内置插件</p>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
-              {builtinPlugins.map((plugin) => (
+              {filteredPlugins.map((plugin) => (
                 <PluginCard
                   key={plugin.id}
                   pluginId={plugin.id}
