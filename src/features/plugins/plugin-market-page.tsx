@@ -281,7 +281,7 @@ export function PluginMarketPage({
             </a>{' '}
             私信提出开发需求。
           </p>
-          <div className="mb-3 flex overflow-hidden rounded-md border border-gray-300">
+          <div className="mb-3 inline-flex overflow-hidden rounded-md border border-gray-300">
             {categories.map((cat) => (
               <button
                 key={cat.key}
