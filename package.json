@@ -1,6 +1,6 @@
 {
-  "name": "zectrix-note-4",
-  "version": "0.2.2",
+  "name": "zectrix-desktop",
+  "version": "0.2.3",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
