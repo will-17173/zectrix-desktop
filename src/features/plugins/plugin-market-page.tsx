@@ -536,7 +536,11 @@ type PluginCardProps = {
 };
 
 // 配置项分组：哪些放在配置对话框里，哪些直接显示
-const CONFIG_HIDDEN_KEYS = ["comfyuiUrl", "workflow", "promptNodeId", "promptField", "seedNodeId", "seedField", "randomizeSeed"];
+const CONFIG_HIDDEN_KEYS = [
+  "comfyuiUrl", "workflow", "promptNodeId", "promptField", "seedNodeId", "seedField", "randomizeSeed",
+  // GitHub Actions 插件的配置项放到配置弹窗里
+  "token", "repo",
+];
 
 // 使用插件 ID 作为 localStorage key，更稳定
 function getStorageKey(pluginId: string) {
@@ -744,7 +748,7 @@ function PluginCard({ name, description, config, supportsLoop = true, onPush, on
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {opt.options.map((item) => (
+                        {(opt.options || []).map((item) => (
                           <SelectItem key={item.value} value={item.value}>
                             {item.label}
                           </SelectItem>

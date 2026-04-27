@@ -371,22 +371,12 @@ pub fn list_builtin_plugins() -> Vec<BuiltinPlugin> {
                     options: vec![],
                     default: "".to_string(),
                 },
-                PluginConfigOption {
-                    name: "limit".to_string(),
-                    label: "显示数量".to_string(),
-                    input_type: None,
-                    options: vec![
-                        PluginConfigOptionItem { value: "5".to_string(), label: "5 条".to_string() },
-                        PluginConfigOptionItem { value: "10".to_string(), label: "10 条".to_string() },
-                        PluginConfigOptionItem { value: "20".to_string(), label: "20 条".to_string() },
-                    ],
-                    default: "10".to_string(),
-                },
+
             ],
             code: r#"(async function() {
     const token = config.token;
     const repo = config.repo;
-    const limit = parseInt(config.limit) || 10;
+    const limit = 10;
 
     if (!token) throw new Error('请配置 GitHub Token');
     if (!repo) throw new Error('请配置仓库 (owner/repo)');
