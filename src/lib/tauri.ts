@@ -317,6 +317,7 @@ export type BuiltinPlugin = {
   code: string;
   config?: PluginConfigOption[];
   supportsLoop?: boolean;
+  category?: string;
 };
 
 export type CustomPluginInput = {
