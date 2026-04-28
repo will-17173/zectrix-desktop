@@ -737,6 +737,7 @@ impl AppState {
 
         let record = StockWatchRecord {
             code: normalized,
+            market: "a".to_string(),
             created_at: chrono::Utc::now().to_rfc3339(),
         };
         records.push(record.clone());
@@ -2888,6 +2889,7 @@ mod tests {
             &temp.path().join("stock_watchlist.json"),
             &vec![StockWatchRecord {
                 code: "600519".to_string(),
+                market: "a".to_string(),
                 created_at: "2026-04-25T10:30:00Z".to_string(),
             }],
         )
@@ -3860,6 +3862,7 @@ mod tests {
             &dir.path().join("stock_watchlist.json"),
             &vec![crate::models::StockWatchRecord {
                 code: "sh000001".into(),
+                market: "a".to_string(),
                 created_at: chrono::Utc::now().to_rfc3339(),
             }],
         )

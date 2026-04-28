@@ -242,8 +242,14 @@ pub struct PluginLoopTaskInput {
 #[serde(rename_all = "camelCase")]
 pub struct StockWatchRecord {
     pub code: String,
+    #[serde(default = "default_market")]
+    pub market: String,
     #[serde(alias = "created_at", rename = "createdAt")]
     pub created_at: String,
+}
+
+fn default_market() -> String {
+    "a".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
