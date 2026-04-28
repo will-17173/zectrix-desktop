@@ -2,6 +2,38 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct StockCode {
+    pub code: String,
+    pub market: String, // "a" | "hk" | "us"
+}
+
+pub fn parse_stock_input(input: &str) -> anyhow::Result<StockCode> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("股票代码不能为空");
+    }
+
+    let all_digits = trimmed.chars().all(|c| c.is_ascii_digit());
+    let has_letter = trimmed.chars().any(|c| c.is_ascii_alphabetic());
+
+    if all_digits {
+        match trimmed.len() {
+            6 => Ok(StockCode { code: trimmed.to_string(), market: "a".to_string() }),
+            1..=5 => {
+                let padded = format!("{:0>5}", trimmed);
+                Ok(StockCode { code: padded, market: "hk".to_string() })
+            }
+            _ => anyhow::bail!("无法识别的股票代码格式：{trimmed}"),
+        }
+    } else if has_letter {
+        let upper = trimmed.to_uppercase();
+        Ok(StockCode { code: upper, market: "us".to_string() })
+    } else {
+        anyhow::bail!("无法识别的股票代码格式：{trimmed}")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StockQuote {
     pub code: String,
@@ -166,6 +198,27 @@ fn stock_code_to_tencent_symbol(code: &str) -> anyhow::Result<String> {
         "sz"
     };
     Ok(format!("{market}{normalized}"))
+}
+
+pub fn stock_code_to_tencent_symbol_v2(sc: &StockCode) -> anyhow::Result<String> {
+    match sc.market.as_str() {
+        "hk" => Ok(format!("hk{}", sc.code)),
+        "us" => Ok(format!("us{}", sc.code)),
+        _ => {
+            // A 股复用原有逻辑
+            let code = &sc.code;
+            let market = if code.starts_with('6') {
+                "sh"
+            } else if code.starts_with('0') || code.starts_with('3') {
+                "sz"
+            } else if code.starts_with('4') || code.starts_with('8') {
+                "bj"
+            } else {
+                "sz"
+            };
+            Ok(format!("{market}{code}"))
+        }
+    }
 }
 
 fn parse_tencent_quotes(body: &str, requested_codes: &[String]) -> anyhow::Result<Vec<StockQuote>> {
@@ -669,6 +722,71 @@ mod tests {
         assert_eq!(quote.change, 0.0);
         assert_eq!(quote.change_percent, 0.0);
         assert!(!quote.valid);
+    }
+
+    #[test]
+    fn parse_stock_input_identifies_a_share() {
+        let code = parse_stock_input("600519").unwrap();
+        assert_eq!(code.code, "600519");
+        assert_eq!(code.market, "a");
+    }
+
+    #[test]
+    fn parse_stock_input_identifies_a_share_with_whitespace() {
+        let code = parse_stock_input(" 000001 ").unwrap();
+        assert_eq!(code.code, "000001");
+        assert_eq!(code.market, "a");
+    }
+
+    #[test]
+    fn parse_stock_input_identifies_hk_stock_pads_to_5_digits() {
+        let code = parse_stock_input("700").unwrap();
+        assert_eq!(code.code, "00700");
+        assert_eq!(code.market, "hk");
+
+        let code2 = parse_stock_input("9988").unwrap();
+        assert_eq!(code2.code, "09988");
+        assert_eq!(code2.market, "hk");
+
+        let code3 = parse_stock_input("00700").unwrap();
+        assert_eq!(code3.code, "00700");
+        assert_eq!(code3.market, "hk");
+    }
+
+    #[test]
+    fn parse_stock_input_identifies_us_stock() {
+        let code = parse_stock_input("AAPL").unwrap();
+        assert_eq!(code.code, "AAPL");
+        assert_eq!(code.market, "us");
+
+        let code2 = parse_stock_input("brk.b").unwrap();
+        assert_eq!(code2.code, "BRK.B");
+        assert_eq!(code2.market, "us");
+
+        let code3 = parse_stock_input("BABA").unwrap();
+        assert_eq!(code3.code, "BABA");
+        assert_eq!(code3.market, "us");
+    }
+
+    #[test]
+    fn parse_stock_input_rejects_invalid_codes() {
+        assert!(parse_stock_input("").is_err());
+        assert!(parse_stock_input("1234567").is_err()); // 7位纯数字
+    }
+
+    #[test]
+    fn stock_code_to_tencent_symbol_supports_hk_and_us() {
+        let sc_hk = StockCode { code: "00700".to_string(), market: "hk".to_string() };
+        assert_eq!(stock_code_to_tencent_symbol_v2(&sc_hk).unwrap(), "hk00700");
+
+        let sc_us = StockCode { code: "AAPL".to_string(), market: "us".to_string() };
+        assert_eq!(stock_code_to_tencent_symbol_v2(&sc_us).unwrap(), "usAAPL");
+
+        let sc_a_sh = StockCode { code: "600519".to_string(), market: "a".to_string() };
+        assert_eq!(stock_code_to_tencent_symbol_v2(&sc_a_sh).unwrap(), "sh600519");
+
+        let sc_a_sz = StockCode { code: "000001".to_string(), market: "a".to_string() };
+        assert_eq!(stock_code_to_tencent_symbol_v2(&sc_a_sz).unwrap(), "sz000001");
     }
 
     #[test]
