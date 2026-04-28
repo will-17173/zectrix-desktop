@@ -113,8 +113,14 @@ fn signed_amount(value: f64) -> String {
 
 pub fn format_stock_push_text(
     quotes: &[StockQuote],
+    stock_codes: &[StockCode],
     now: chrono::DateTime<chrono::Local>,
 ) -> String {
+    let code_market: std::collections::HashMap<String, String> = stock_codes
+        .iter()
+        .map(|sc| (sc.code.clone(), sc.market.clone()))
+        .collect();
+
     let valid_quotes: Vec<&StockQuote> = quotes.iter().filter(|q| q.valid).collect();
 
     if valid_quotes.is_empty() {
@@ -130,13 +136,19 @@ pub fn format_stock_push_text(
     ];
 
     lines.extend(valid_quotes.iter().map(|quote| {
+        let market_label = match code_market.get(&quote.code).map(String::as_str) {
+            Some("hk") => " [港]",
+            Some("us") => " [美]",
+            _ => "",
+        };
         format!(
-            "{} {} {:.2} {} {}%",
+            "{} {} {:.2} {} {}%{}",
             quote.code,
             quote.name,
             quote.price,
             signed_amount(quote.change),
-            signed_amount(quote.change_percent)
+            signed_amount(quote.change_percent),
+            market_label
         )
     }));
 
@@ -582,6 +594,7 @@ mod tests {
                     valid: true,
                 },
             ],
+            &[],
             now,
         );
 
@@ -615,6 +628,7 @@ mod tests {
                     valid: false,
                 },
             ],
+            &[],
             now,
         );
 
@@ -933,5 +947,51 @@ v_sh600001="1~邯郸钢铁~600001~5.29~5.29~0.00~0~0~0~0.00~0~0.00~0~0.00~0~0.00
         assert_eq!(quotes[0].name, "苹果公司");
         assert_eq!(quotes[0].price, 189.30);
         assert!(quotes[0].valid);
+    }
+
+    #[test]
+    fn formats_stock_push_text_with_market_labels() {
+        let now = chrono::Local
+            .with_ymd_and_hms(2026, 4, 28, 10, 30, 0)
+            .unwrap();
+        let text = format_stock_push_text(
+            &[
+                StockQuote {
+                    code: "600519".to_string(),
+                    name: "贵州茅台".to_string(),
+                    price: 1458.49,
+                    change: 39.49,
+                    change_percent: 2.78,
+                    valid: true,
+                },
+                StockQuote {
+                    code: "00700".to_string(),
+                    name: "腾讯控股".to_string(),
+                    price: 380.00,
+                    change: -2.00,
+                    change_percent: -0.52,
+                    valid: true,
+                },
+                StockQuote {
+                    code: "AAPL".to_string(),
+                    name: "苹果公司".to_string(),
+                    price: 189.30,
+                    change: 1.20,
+                    change_percent: 0.64,
+                    valid: true,
+                },
+            ],
+            &[
+                StockCode { code: "600519".to_string(), market: "a".to_string() },
+                StockCode { code: "00700".to_string(), market: "hk".to_string() },
+                StockCode { code: "AAPL".to_string(), market: "us".to_string() },
+            ],
+            now,
+        );
+
+        assert!(text.contains("600519 贵州茅台 1458.49 +39.49 +2.78%"));
+        assert!(!text.contains("[A]")); // A 股不加标签
+        assert!(text.contains("00700 腾讯控股 380.00 -2.00 -0.52% [港]"));
+        assert!(text.contains("AAPL 苹果公司 189.30 +1.20 +0.64% [美]"));
     }
 }

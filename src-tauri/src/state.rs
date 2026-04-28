@@ -151,7 +151,7 @@ async fn execute_stock_push(data_dir: PathBuf, task_id: i64) -> anyhow::Result<(
         .collect::<Vec<_>>();
     let quotes = crate::stock_quote::fetch_stock_quotes(&stock_codes).await?;
     crate::stock_quote::ensure_has_valid_stock_quote(&quotes)?;
-    let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
+    let text = crate::stock_quote::format_stock_push_text(&quotes, &stock_codes, chrono::Local::now());
 
     // Push text
     crate::api::client::push_text(
@@ -1707,7 +1707,7 @@ impl AppState {
             .collect::<Vec<_>>();
         let quotes = crate::stock_quote::fetch_stock_quotes(&stock_codes).await?;
         crate::stock_quote::ensure_has_valid_stock_quote(&quotes)?;
-        let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
+        let text = crate::stock_quote::format_stock_push_text(&quotes, &stock_codes, chrono::Local::now());
 
         self.push_text(&text, Some(20), device_id, Some(page_id))
             .await
