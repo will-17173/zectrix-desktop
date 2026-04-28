@@ -728,16 +728,16 @@ impl AppState {
     }
 
     pub fn add_stock_watch(&self, code: &str) -> anyhow::Result<StockWatchRecord> {
-        let normalized = crate::stock_quote::normalize_stock_code(code)?;
+        let sc = crate::stock_quote::parse_stock_input(code)?;
         let mut records = self.load_stock_watchlist()?;
 
-        if records.iter().any(|record| record.code == normalized) {
-            anyhow::bail!("股票代码 {normalized} 已存在");
+        if records.iter().any(|record| record.code == sc.code && record.market == sc.market) {
+            anyhow::bail!("股票代码 {} 已存在", sc.code);
         }
 
         let record = StockWatchRecord {
-            code: normalized,
-            market: "a".to_string(),
+            code: sc.code,
+            market: sc.market,
             created_at: chrono::Utc::now().to_rfc3339(),
         };
         records.push(record.clone());
@@ -747,13 +747,13 @@ impl AppState {
     }
 
     pub fn remove_stock_watch(&self, code: &str) -> anyhow::Result<()> {
-        let normalized = crate::stock_quote::normalize_stock_code(code)?;
+        let sc = crate::stock_quote::parse_stock_input(code)?;
         let mut records = self.load_stock_watchlist()?;
         let before = records.len();
-        records.retain(|record| record.code != normalized);
+        records.retain(|record| !(record.code == sc.code && record.market == sc.market));
 
         if records.len() == before {
-            anyhow::bail!("股票代码 {normalized} 未找到");
+            anyhow::bail!("股票代码 {} 未找到", sc.code);
         }
 
         self.save_stock_watchlist(&records)
@@ -2908,6 +2908,7 @@ mod tests {
 
         let created = state.add_stock_watch("600519").unwrap();
         assert_eq!(created.code, "600519");
+        assert_eq!(created.market, "a");
 
         let list = state.list_stock_watchlist().unwrap();
         assert_eq!(list.len(), 1);
@@ -2925,9 +2926,9 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let state = test_state(&temp);
 
-        let error = state.add_stock_watch("abc").unwrap_err().to_string();
-
-        assert!(error.contains("6 位数字"));
+        // 7 位纯数字无法识别市场
+        let error = state.add_stock_watch("1234567").unwrap_err().to_string();
+        assert!(error.contains("无法识别"));
     }
 
     #[test]
@@ -2938,6 +2939,7 @@ mod tests {
         // 任意 6 位数字都可以
         let created = state.add_stock_watch("830000").unwrap();
         assert_eq!(created.code, "830000");
+        assert_eq!(created.market, "a");
     }
 
     #[test]
