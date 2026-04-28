@@ -282,6 +282,69 @@ fn parse_tencent_quotes(body: &str, requested_codes: &[String]) -> anyhow::Resul
         .collect())
 }
 
+pub fn parse_tencent_quotes_v2(
+    body: &str,
+    requested: &[StockCode],
+) -> anyhow::Result<Vec<StockQuote>> {
+    // 建立 symbol → StockCode 的映射，用于解析后还原
+    let mut symbol_map: HashMap<String, &StockCode> = HashMap::new();
+    for sc in requested {
+        if let Ok(sym) = stock_code_to_tencent_symbol_v2(sc) {
+            symbol_map.insert(sym, sc);
+        }
+    }
+
+    // 同时建立 code → StockQuote 的映射（key 是 StockCode.code）
+    let mut by_code: HashMap<String, StockQuote> = HashMap::new();
+
+    for line in body.lines() {
+        let Some((name_part, value_part)) = line.split_once("=\"") else {
+            continue;
+        };
+        let raw_value = value_part.trim().trim_end_matches(';').trim_end_matches('"');
+        let fields: Vec<&str> = raw_value.split('~').collect();
+
+        // 从变量名（name_part）匹配 symbol，如 v_hk00700 → hk00700
+        let symbol = name_part.trim_start_matches("v_");
+        let Some(sc) = symbol_map.get(symbol) else {
+            continue;
+        };
+
+        if fields.len() < 33 {
+            by_code.insert(sc.code.clone(), unavailable_stock_quote(&sc.code, None));
+            continue;
+        }
+
+        let name = fields[1].trim();
+        let price = fields[3].trim().parse::<f64>().unwrap_or(0.0);
+        let change = fields[31].trim().parse::<f64>().unwrap_or(0.0);
+        let change_percent = fields[32].trim().parse::<f64>().unwrap_or(0.0);
+        let status = fields.get(40).copied().unwrap_or_default();
+        let is_valid = !name.is_empty() && price > 0.0 && status != "D";
+
+        by_code.insert(
+            sc.code.clone(),
+            StockQuote {
+                code: sc.code.clone(),
+                name: if name.is_empty() { "未知".to_string() } else { name.to_string() },
+                price: if is_valid { price } else { 0.0 },
+                change: if is_valid { change } else { 0.0 },
+                change_percent: if is_valid { change_percent } else { 0.0 },
+                valid: is_valid,
+            },
+        );
+    }
+
+    Ok(requested
+        .iter()
+        .map(|sc| {
+            by_code
+                .remove(&sc.code)
+                .unwrap_or_else(|| unavailable_stock_quote(&sc.code, None))
+        })
+        .collect())
+}
+
 async fn fetch_tencent_quotes(codes: &[String]) -> anyhow::Result<Vec<StockQuote>> {
     if codes.is_empty() {
         anyhow::bail!("股票列表为空");
@@ -312,6 +375,39 @@ async fn fetch_tencent_quotes(codes: &[String]) -> anyhow::Result<Vec<StockQuote
     let bytes = response.bytes().await?;
     let (body, _, _) = encoding_rs::GBK.decode(&bytes);
     parse_tencent_quotes(&body, codes)
+}
+
+async fn fetch_tencent_quotes_v2(stock_codes: &[StockCode]) -> anyhow::Result<Vec<StockQuote>> {
+    if stock_codes.is_empty() {
+        anyhow::bail!("股票列表为空");
+    }
+
+    let symbols: Vec<String> = stock_codes
+        .iter()
+        .filter_map(|sc| stock_code_to_tencent_symbol_v2(sc).ok())
+        .collect();
+
+    if symbols.is_empty() {
+        return Ok(stock_codes
+            .iter()
+            .map(|sc| unavailable_stock_quote(&sc.code, Some("代码无效")))
+            .collect());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .user_agent("Mozilla/5.0")
+        .build()?;
+    let url = format!("https://qt.gtimg.cn/q={}", symbols.join(","));
+    let response = client.get(&url).send().await?;
+    if !response.status().is_success() {
+        anyhow::bail!("腾讯行情接口请求失败: {}", response.status());
+    }
+
+    let bytes = response.bytes().await?;
+    let (body, _, _) = encoding_rs::GBK.decode(&bytes);
+    parse_tencent_quotes_v2(&body, stock_codes)
 }
 
 #[cfg(test)]
@@ -432,8 +528,8 @@ pub fn parse_eastmoney_stock_quote(body: &str, requested_code: &str) -> anyhow::
     })
 }
 
-pub async fn fetch_stock_quotes(codes: &[String]) -> anyhow::Result<Vec<StockQuote>> {
-    fetch_tencent_quotes(codes).await
+pub async fn fetch_stock_quotes(stock_codes: &[StockCode]) -> anyhow::Result<Vec<StockQuote>> {
+    fetch_tencent_quotes_v2(stock_codes).await
 }
 
 #[cfg(test)]
@@ -814,5 +910,28 @@ v_sh600001="1~邯郸钢铁~600001~5.29~5.29~0.00~0~0~0~0.00~0~0.00~0~0.00~0~0.00
         assert!(quotes[1].valid);
         assert_eq!(quotes[2].name, "宝钢股份");
         assert!(quotes[2].valid);
+    }
+
+    #[test]
+    fn parses_tencent_hk_quote() {
+        // 腾讯港股行情格式：fields[2] 是去掉前缀的代码（如 "00700"），fields[1] 是名称
+        let body = r#"v_hk00700="1~腾讯控股~00700~380.00~382.00~380.00~123456~50000~73456~379.80~1000~379.60~2000~379.40~3000~379.20~4000~379.00~5000~380.20~800~380.40~1200~380.60~1600~380.80~2000~381.00~2500~~20260428160000~-2.00~-0.52~385.00~378.00~380.00/123456/4689480000~123456~468948~0.20~~";"#;
+        let sc = StockCode { code: "00700".to_string(), market: "hk".to_string() };
+        let quotes = parse_tencent_quotes_v2(body, &[sc]).unwrap();
+        assert_eq!(quotes[0].code, "00700");
+        assert_eq!(quotes[0].name, "腾讯控股");
+        assert_eq!(quotes[0].price, 380.00);
+        assert!(quotes[0].valid);
+    }
+
+    #[test]
+    fn parses_tencent_us_quote() {
+        let body = r#"v_usAAPL="1~苹果公司~AAPL~189.30~188.10~189.30~4567890~2000000~2567890~189.20~5000~189.10~8000~189.00~10000~188.90~15000~188.80~20000~189.40~3000~189.50~5000~189.60~8000~189.70~10000~189.80~12000~~20260428160000~1.20~0.64~190.50~187.80~189.30/4567890/864045270~4567890~86404~0.20~~";"#;
+        let sc = StockCode { code: "AAPL".to_string(), market: "us".to_string() };
+        let quotes = parse_tencent_quotes_v2(body, &[sc]).unwrap();
+        assert_eq!(quotes[0].code, "AAPL");
+        assert_eq!(quotes[0].name, "苹果公司");
+        assert_eq!(quotes[0].price, 189.30);
+        assert!(quotes[0].valid);
     }
 }

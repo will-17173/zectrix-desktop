@@ -145,8 +145,11 @@ async fn execute_stock_push(data_dir: PathBuf, task_id: i64) -> anyhow::Result<(
         return Ok(()); // No stocks, skip push
     }
 
-    let codes = watchlist.iter().map(|r| r.code.clone()).collect::<Vec<_>>();
-    let quotes = crate::stock_quote::fetch_stock_quotes(&codes).await?;
+    let stock_codes = watchlist
+        .iter()
+        .filter_map(|r| crate::stock_quote::parse_stock_input(&r.code).ok())
+        .collect::<Vec<_>>();
+    let quotes = crate::stock_quote::fetch_stock_quotes(&stock_codes).await?;
     crate::stock_quote::ensure_has_valid_stock_quote(&quotes)?;
     let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
 
@@ -1698,11 +1701,11 @@ impl AppState {
             anyhow::bail!("股票列表为空");
         }
 
-        let codes = records
+        let stock_codes = records
             .iter()
-            .map(|record| record.code.clone())
+            .filter_map(|record| crate::stock_quote::parse_stock_input(&record.code).ok())
             .collect::<Vec<_>>();
-        let quotes = crate::stock_quote::fetch_stock_quotes(&codes).await?;
+        let quotes = crate::stock_quote::fetch_stock_quotes(&stock_codes).await?;
         crate::stock_quote::ensure_has_valid_stock_quote(&quotes)?;
         let text = crate::stock_quote::format_stock_push_text(&quotes, chrono::Local::now());
 
@@ -1716,11 +1719,11 @@ impl AppState {
             return Ok(Vec::new());
         }
 
-        let codes = records
+        let stock_codes = records
             .iter()
-            .map(|record| record.code.clone())
+            .filter_map(|record| crate::stock_quote::parse_stock_input(&record.code).ok())
             .collect::<Vec<_>>();
-        crate::stock_quote::fetch_stock_quotes(&codes).await
+        crate::stock_quote::fetch_stock_quotes(&stock_codes).await
     }
 
     // ==================== Stock Push Task Methods ====================
