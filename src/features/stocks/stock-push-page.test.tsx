@@ -67,7 +67,7 @@ import { StockPushPage } from "./stock-push-page";
 import type { StockPushTaskRecord } from "../../lib/tauri";
 
 const devices = [{ deviceId: "AA:BB", alias: "桌面屏", board: "note" }];
-const watchlist = [{ code: "600519", createdAt: "2026-04-25T10:30:00Z" }];
+const watchlist = [{ code: "600519", market: "a", createdAt: "2026-04-25T10:30:00Z" }];
 const defaultQuotes = [
   { code: "600519", name: "贵州茅台", price: 1458.49, change: 39.49, changePercent: 2.78, valid: true },
 ];
@@ -235,11 +235,11 @@ test("rejects invalid stock code before calling add", async () => {
     </>,
   );
 
-  await user.type(screen.getByLabelText("股票代码"), "abc");
+  await user.type(screen.getByLabelText("股票代码"), "1234567");
   await user.click(screen.getByRole("button", { name: "添加" }));
 
   expect(onAddStock).not.toHaveBeenCalled();
-  expect(await screen.findByText("股票代码必须是 6 位数字")).toBeInTheDocument();
+  expect(await screen.findByText("纯数字代码不能超过 6 位")).toBeInTheDocument();
 });
 
 test("adds and removes stocks", async () => {
@@ -322,8 +322,8 @@ test("keeps both clicked delete buttons disabled during concurrent removals unti
     <StockPushPage
       devices={devices}
       watchlist={[
-        { code: "600519", createdAt: "2026-04-25T10:30:00Z" },
-        { code: "000001", createdAt: "2026-04-25T10:31:00Z" },
+        { code: "600519", market: "a", createdAt: "2026-04-25T10:30:00Z" },
+        { code: "000001", market: "a", createdAt: "2026-04-25T10:31:00Z" },
       ]}
       quotes={twoQuotes}
       pushTask={null}

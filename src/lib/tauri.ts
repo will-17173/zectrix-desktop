@@ -46,6 +46,7 @@ export type ImageFolderScanResult = {
 
 export type StockWatchRecord = {
   code: string;
+  market: string; // "a" | "hk" | "us"
   createdAt: string;
 };
 

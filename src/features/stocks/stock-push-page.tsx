@@ -41,10 +41,12 @@ type Props = {
 };
 
 function validateCode(code: string): string | null {
-  if (!/^\d{6}$/.test(code)) {
-    return "股票代码必须是 6 位数字";
-  }
-
+  const trimmed = code.trim();
+  if (!trimmed) return "请输入股票代码";
+  const allDigits = /^\d+$/.test(trimmed);
+  const hasLetter = /[a-zA-Z]/.test(trimmed);
+  if (allDigits && trimmed.length > 6) return "纯数字代码不能超过 6 位";
+  if (!allDigits && !hasLetter) return "无法识别的股票代码格式";
   return null;
 }
 
@@ -209,7 +211,7 @@ export function StockPushPage({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">股票推送</h2>
-            <p className="text-sm text-gray-500">维护 A 股代码列表，实时获取行情后推送到设备的指定页面。</p>
+            <p className="text-sm text-gray-500">维护股票代码列表（A股/港股/美股），实时获取行情后推送到设备的指定页面。</p>
           </div>
         </div>
       </header>
@@ -230,9 +232,8 @@ export function StockPushPage({
                   void handleAdd();
                 }
               }}
-              placeholder="例如 600519"
-              inputMode="numeric"
-              maxLength={6}
+              placeholder="A股: 600519 | 港股: 00700 | 美股: AAPL"
+              maxLength={10}
               className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
             />
             <button
@@ -265,9 +266,15 @@ export function StockPushPage({
                   >
                     <div className="flex items-center gap-2">
                       <div className={`w-1.5 h-1.5 rounded-full ${isInvalid ? "bg-gray-300" : "bg-red-400"}`}></div>
-                      <span className="font-mono text-sm">
+                      <span className="font-mono text-sm flex items-center gap-1.5">
                         {stock.code}
-                        {stockName ? <span className="ml-2 text-xs text-gray-500">({stockName})</span> : null}
+                        {stock.market === "hk" && (
+                          <span className="rounded px-1 py-0.5 text-xs bg-blue-100 text-blue-700">港</span>
+                        )}
+                        {stock.market === "us" && (
+                          <span className="rounded px-1 py-0.5 text-xs bg-green-100 text-green-700">美</span>
+                        )}
+                        {stockName ? <span className="text-xs text-gray-500">({stockName})</span> : null}
                       </span>
                     </div>
                     <button
