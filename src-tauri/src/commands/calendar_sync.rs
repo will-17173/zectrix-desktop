@@ -316,3 +316,58 @@ pub async fn sync_calendar(
 
     Ok(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn make_data_dir() -> TempDir {
+        tempfile::tempdir().unwrap()
+    }
+
+    #[test]
+    fn config_defaults_when_file_missing() {
+        let tmp = make_data_dir();
+        let path = tmp.path().join("calendar_sync.json");
+        let config: CalendarSyncConfig = load_json(&path).unwrap();
+        assert!(!config.enabled);
+        assert!(config.target_calendar_id.is_none());
+    }
+
+    #[test]
+    fn config_roundtrip() {
+        let tmp = make_data_dir();
+        let path = tmp.path().join("calendar_sync.json");
+        let cfg = CalendarSyncConfig {
+            enabled: true,
+            direction: SyncDirection::Bidirectional,
+            target_type: CalendarTargetType::CalendarEvent,
+            target_calendar_id: Some("cal-abc".to_string()),
+        };
+        save_json(&path, &cfg).unwrap();
+
+        let loaded: CalendarSyncConfig = load_json(&path).unwrap();
+        assert!(loaded.enabled);
+        assert_eq!(loaded.target_calendar_id.as_deref(), Some("cal-abc"));
+    }
+
+    #[test]
+    fn todo_record_calendar_fields_default_none() {
+        let json = r#"{
+            "localId": "todo-1",
+            "id": null,
+            "title": "test",
+            "description": "",
+            "status": 0,
+            "priority": 0,
+            "dirty": false,
+            "deleted": false,
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+        }"#;
+        let todo: crate::models::TodoRecord = serde_json::from_str(json).unwrap();
+        assert!(todo.calendar_external_id.is_none());
+        assert!(todo.calendar_synced_at.is_none());
+    }
+}
