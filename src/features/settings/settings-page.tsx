@@ -3,6 +3,7 @@ import { type ApiKeyRecord, type DeviceRecord, checkForUpdate, getCurrentVersion
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { BilibiliIcon, HeartIcon } from "../../components/layout/app-sidebar";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { CalendarSyncPanel } from "./calendar-sync-panel";
 
 type SettingsPageProps = {
   apiKeys: ApiKeyRecord[];
@@ -355,6 +356,14 @@ export function SettingsPage({
           )}
         </div>
       </div>
+
+        <div>
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">日历同步</h3>
+            <p className="text-sm text-gray-500">将待办同步到 macOS 日历事件或提醒事项。</p>
+          </div>
+          <CalendarSyncPanel />
+        </div>
       </div>
 
       <footer className="pt-4 pb-2 flex justify-center items-center gap-2 text-gray-500 text-sm">

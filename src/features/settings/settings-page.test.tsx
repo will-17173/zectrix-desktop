@@ -2,13 +2,17 @@ import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import { SettingsPage } from "./settings-page";
 
-const { addApiKey, removeApiKey, addDeviceCache, removeDeviceCache, getCurrentVersion, checkForUpdate } = vi.hoisted(() => ({
+const { addApiKey, removeApiKey, addDeviceCache, removeDeviceCache, getCurrentVersion, checkForUpdate, getCalendarSyncConfig, saveCalendarSyncConfig, listCalendars, syncCalendar } = vi.hoisted(() => ({
   addApiKey: vi.fn().mockResolvedValue({ id: 1, name: "test", key: "zt_test", createdAt: "2026-04-23T00:00:00Z" }),
   removeApiKey: vi.fn().mockResolvedValue(undefined),
   addDeviceCache: vi.fn().mockResolvedValue({ deviceId: "AA:BB:CC:DD:EE:FF", alias: "Test Device", board: "board", apiKeyId: 1 }),
   removeDeviceCache: vi.fn().mockResolvedValue(undefined),
   getCurrentVersion: vi.fn(() => new Promise<string>(() => {})),
   checkForUpdate: vi.fn().mockResolvedValue(null),
+  getCalendarSyncConfig: vi.fn().mockResolvedValue({ enabled: false, direction: "ToCalendar", targetType: "Reminder", targetCalendarId: null }),
+  saveCalendarSyncConfig: vi.fn().mockResolvedValue(undefined),
+  listCalendars: vi.fn().mockResolvedValue([]),
+  syncCalendar: vi.fn().mockResolvedValue({ created: 0, updated: 0, skipped: 0, deleted: 0 }),
 }));
 
 vi.mock("../../lib/tauri", () => ({
@@ -18,6 +22,10 @@ vi.mock("../../lib/tauri", () => ({
   removeDeviceCache,
   getCurrentVersion,
   checkForUpdate,
+  getCalendarSyncConfig,
+  saveCalendarSyncConfig,
+  listCalendars,
+  syncCalendar,
 }));
 
 test("adds and removes API keys", async () => {
