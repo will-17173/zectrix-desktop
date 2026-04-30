@@ -109,7 +109,7 @@ func cmdListItems(calendarId: String) {
                 externalId: ev.eventIdentifier,
                 title: ev.title ?? "",
                 dueDate: isoString(ev.startDate),
-                isCompleted: ev.status == .done,
+                isCompleted: false,
                 lastModified: isoString(ev.lastModifiedDate ?? ev.startDate) ?? ""
             )
         }
