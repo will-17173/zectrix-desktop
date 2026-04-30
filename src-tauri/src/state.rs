@@ -428,6 +428,8 @@ fn merge_cloud_todos(
                             .unwrap_or_else(|| local.created_at.clone()),
                         updated_at: now.to_string(),
                         last_synced_status: Some(cloud.status),
+                        calendar_external_id: local.calendar_external_id.clone(),
+                        calendar_synced_at: local.calendar_synced_at.clone(),
                     });
                 }
             }
@@ -454,6 +456,8 @@ fn merge_cloud_todos(
             created_at: cloud.create_date.unwrap_or_else(|| now.to_string()),
             updated_at: now.to_string(),
             last_synced_status: Some(cloud.status),
+            calendar_external_id: None,
+            calendar_synced_at: None,
         });
     }
 
@@ -533,6 +537,8 @@ fn todo_from_legacy(legacy: LegacyTodoRecord) -> TodoRecord {
         } else {
             None
         },
+        calendar_external_id: None,
+        calendar_synced_at: None,
     }
 }
 
@@ -1493,6 +1499,8 @@ impl AppState {
             created_at: now.clone(),
             updated_at: now,
             last_synced_status: None,
+            calendar_external_id: None,
+            calendar_synced_at: None,
         };
         todos.push(record.clone());
         save_json(&path, &todos)?;
@@ -2719,6 +2727,8 @@ mod tests {
             created_at: "2026-04-23T09:00:00Z".into(),
             updated_at: "2026-04-23T09:00:00Z".into(),
             last_synced_status: id.map(|_| status),
+            calendar_external_id: None,
+            calendar_synced_at: None,
         }
     }
 
@@ -2845,6 +2855,8 @@ mod tests {
                 created_at: "2026-04-23T09:00:00Z".into(),
                 updated_at: "2026-04-23T09:00:00Z".into(),
                 last_synced_status: None,
+                calendar_external_id: None,
+                calendar_synced_at: None,
             }],
         )
         .unwrap();

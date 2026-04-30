@@ -84,6 +84,18 @@ pub struct TodoRecord {
         alias = "last_synced_status"
     )]
     pub last_synced_status: Option<i32>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "calendar_external_id"
+    )]
+    pub calendar_external_id: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "calendar_synced_at"
+    )]
+    pub calendar_synced_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -308,4 +320,61 @@ pub struct ImageFolderScanResult {
     pub total_images: u32,
     pub image_files: Vec<String>,
     pub warning: Option<String>,
+}
+
+// ============ Calendar Sync ============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncDirection {
+    ToCalendar,
+    FromCalendar,
+    Bidirectional,
+}
+
+impl Default for SyncDirection {
+    fn default() -> Self {
+        SyncDirection::ToCalendar
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CalendarTargetType {
+    CalendarEvent,
+    Reminder,
+}
+
+impl Default for CalendarTargetType {
+    fn default() -> Self {
+        CalendarTargetType::Reminder
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarSyncConfig {
+    pub enabled: bool,
+    #[serde(default)]
+    pub direction: SyncDirection,
+    #[serde(default)]
+    pub target_type: CalendarTargetType,
+    pub target_calendar_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarInfo {
+    pub id: String,
+    pub title: String,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncResult {
+    pub created: u32,
+    pub updated: u32,
+    pub skipped: u32,
+    pub deleted: u32,
 }
