@@ -1,3 +1,4 @@
+pub mod calendar_sync;
 pub mod config;
 pub mod devices;
 pub mod image_loop;
