@@ -33,12 +33,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["resources/calendar-bridge"],
-    "macOS": {
-      "infoPlist": {
-        "NSCalendarsUsageDescription": "极趣 Note 需要访问您的日历以同步待办事项。",
-        "NSRemindersUsageDescription": "极趣 Note 需要访问您的提醒事项以同步待办事项。"
-      }
-    }
+    "resources": ["resources/calendar-bridge"]
   }
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCalendarsUsageDescription</key>
+	<string>极趣 Note 需要访问您的日历以同步待办事项。</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>极趣 Note 需要访问您的提醒事项以同步待办事项。</string>
+</dict>
+</plist>
