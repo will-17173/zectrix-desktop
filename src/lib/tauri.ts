@@ -506,3 +506,44 @@ export async function startStockPushTask(): Promise<StockPushTaskRecord> {
 export async function stopStockPushTask(): Promise<StockPushTaskRecord> {
   return invoke<StockPushTaskRecord>("stop_stock_push_task");
 }
+
+// ─── Calendar Sync ───────────────────────────────────────────────────────────
+
+export type SyncDirection = "ToCalendar" | "FromCalendar" | "Bidirectional";
+export type CalendarTargetType = "CalendarEvent" | "Reminder";
+
+export type CalendarSyncConfig = {
+  enabled: boolean;
+  direction: SyncDirection;
+  targetType: CalendarTargetType;
+  targetCalendarId: string | null;
+};
+
+export type CalendarInfo = {
+  id: string;
+  title: string;
+  color: string | null;
+};
+
+export type SyncResult = {
+  created: number;
+  updated: number;
+  skipped: number;
+  deleted: number;
+};
+
+export async function getCalendarSyncConfig(): Promise<CalendarSyncConfig> {
+  return invoke<CalendarSyncConfig>("get_calendar_sync_config");
+}
+
+export async function saveCalendarSyncConfig(config: CalendarSyncConfig): Promise<void> {
+  return invoke("save_calendar_sync_config", { config });
+}
+
+export async function listCalendars(targetType: CalendarTargetType): Promise<CalendarInfo[]> {
+  return invoke<CalendarInfo[]>("list_calendars", { targetType });
+}
+
+export async function syncCalendar(): Promise<SyncResult> {
+  return invoke<SyncResult>("sync_calendar");
+}
