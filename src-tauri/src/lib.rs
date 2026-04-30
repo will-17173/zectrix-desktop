@@ -89,6 +89,10 @@ pub fn run() {
             commands::image_loop::stop_image_loop_task,
             commands::image_loop::push_folder_image,
             commands::image_loop::select_folder_dialog,
+            commands::calendar_sync::get_calendar_sync_config,
+            commands::calendar_sync::save_calendar_sync_config,
+            commands::calendar_sync::list_calendars,
+            commands::calendar_sync::sync_calendar,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
