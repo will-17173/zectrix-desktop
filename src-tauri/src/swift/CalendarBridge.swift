@@ -44,7 +44,11 @@ func requestPermission(type: EKEntityType) {
     let semaphore = DispatchSemaphore(value: 0)
     var granted = false
     if #available(macOS 14.0, *) {
-        store.requestFullAccessToEvents { ok, _ in granted = ok; semaphore.signal() }
+        if type == .event {
+            store.requestFullAccessToEvents { ok, _ in granted = ok; semaphore.signal() }
+        } else {
+            store.requestFullAccessToReminders { ok, _ in granted = ok; semaphore.signal() }
+        }
     } else {
         store.requestAccess(to: type) { ok, _ in granted = ok; semaphore.signal() }
     }

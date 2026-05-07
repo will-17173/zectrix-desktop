@@ -5,6 +5,7 @@ import { toast } from "../../components/ui/toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../components/ui/dialog";
 import { useAnalytics } from "../../hooks/useAnalytics";
+import { CalendarSyncPanel } from "../settings/calendar-sync-panel";
 
 type Device = { deviceId: string; alias: string; board: string };
 
@@ -83,6 +84,8 @@ export function TodoListPage({
   const [pushingId, setPushingId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [editingTodo, setEditingTodo] = useState<TodoRecord | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const isMacOS = navigator.userAgent.includes("Mac");
 
   // 同步外部 todos 变化到内部 state
   useEffect(() => {
@@ -414,6 +417,27 @@ export function TodoListPage({
             </form>
           </DialogContent>
         </Dialog>
+            {isMacOS && (
+              <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="px-4 py-2 border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  >
+                    Apple日历同步
+                  </button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>日历同步设置</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-500">将待办同步到 macOS 日历事件或提醒事项。</p>
+                    <CalendarSyncPanel />
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
       </header>

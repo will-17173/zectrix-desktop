@@ -172,8 +172,8 @@ export function CalendarSyncPanel() {
             <div className="flex flex-col gap-1.5">
               {(
                 [
-                  ["toCalendar", "仅推送到日历"],
-                  ["fromCalendar", "仅从日历导入"],
+                  ["toCalendar", "仅推送到 Apple 日历"],
+                  ["fromCalendar", "仅从 Apple 日历导入"],
                   ["bidirectional", "双向同步"],
                 ] as const
               ).map(([val, label]) => (
