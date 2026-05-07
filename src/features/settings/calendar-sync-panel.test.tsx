@@ -10,8 +10,8 @@ const {
 } = vi.hoisted(() => ({
   getCalendarSyncConfig: vi.fn().mockResolvedValue({
     enabled: false,
-    direction: "ToCalendar",
-    targetType: "Reminder",
+    direction: "toCalendar",
+    targetType: "reminder",
     targetCalendarId: null,
   }),
   saveCalendarSyncConfig: vi.fn().mockResolvedValue(undefined),
@@ -46,8 +46,8 @@ test("enable toggle calls saveCalendarSyncConfig", async () => {
 test("shows calendar options when enabled", async () => {
   getCalendarSyncConfig.mockResolvedValueOnce({
     enabled: true,
-    direction: "ToCalendar",
-    targetType: "Reminder",
+    direction: "toCalendar",
+    targetType: "reminder",
     targetCalendarId: null,
   });
   render(<CalendarSyncPanel />);
@@ -59,8 +59,8 @@ test("shows calendar options when enabled", async () => {
 test("sync button shows result summary", async () => {
   getCalendarSyncConfig.mockResolvedValueOnce({
     enabled: true,
-    direction: "ToCalendar",
-    targetType: "Reminder",
+    direction: "toCalendar",
+    targetType: "reminder",
     targetCalendarId: "cal-1",
   });
   const user = userEvent.setup();

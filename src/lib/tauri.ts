@@ -509,8 +509,8 @@ export async function stopStockPushTask(): Promise<StockPushTaskRecord> {
 
 // ─── Calendar Sync ───────────────────────────────────────────────────────────
 
-export type SyncDirection = "ToCalendar" | "FromCalendar" | "Bidirectional";
-export type CalendarTargetType = "CalendarEvent" | "Reminder";
+export type SyncDirection = "toCalendar" | "fromCalendar" | "bidirectional";
+export type CalendarTargetType = "calendarEvent" | "reminder";
 
 export type CalendarSyncConfig = {
   enabled: boolean;
@@ -542,6 +542,10 @@ export async function saveCalendarSyncConfig(config: CalendarSyncConfig): Promis
 
 export async function listCalendars(targetType: CalendarTargetType): Promise<CalendarInfo[]> {
   return invoke<CalendarInfo[]>("list_calendars", { targetType });
+}
+
+export async function requestCalendarPermission(): Promise<boolean> {
+  return invoke<boolean>("request_calendar_permission");
 }
 
 export async function syncCalendar(): Promise<SyncResult> {

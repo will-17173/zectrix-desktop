@@ -13,7 +13,12 @@ fn get_bridge_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String>
         .path()
         .resource_dir()
         .map_err(|e| format!("resource_dir error: {e}"))?;
-    Ok(resource_dir.join("calendar-bridge"))
+    eprintln!("[calendar-sync] resource_dir: {:?}", resource_dir);
+    let bridge = resource_dir.join("resources").join("calendar-bridge");
+    if !bridge.exists() {
+        return Err(format!("calendar-bridge not found at {:?}", bridge));
+    }
+    Ok(bridge)
 }
 
 // ─── Bridge runner ───────────────────────────────────────────────────────────
@@ -41,6 +46,19 @@ fn config_path(data_dir: &std::path::Path) -> std::path::PathBuf {
 // ─── Tauri commands ──────────────────────────────────────────────────────────
 
 #[tauri::command]
+pub fn request_calendar_permission(app: tauri::AppHandle) -> Result<bool, String> {
+    let bridge = get_bridge_path(&app)?;
+    let output = run_bridge(&bridge, &["request-permission"])?;
+    #[derive(Deserialize)]
+    struct SuccessResponse {
+        success: bool,
+    }
+    let resp: SuccessResponse =
+        serde_json::from_str(&output).map_err(|e| format!("parse error: {e}"))?;
+    Ok(resp.success)
+}
+
+#[tauri::command]
 pub fn get_calendar_sync_config(
     state: tauri::State<'_, crate::state::AppState>,
 ) -> Result<CalendarSyncConfig, String> {
@@ -61,7 +79,7 @@ pub fn list_calendars(
     target_type: String,
 ) -> Result<Vec<CalendarInfo>, String> {
     let bridge = get_bridge_path(&app)?;
-    let type_arg = if target_type == "CalendarEvent" {
+    let type_arg = if target_type == "calendarEvent" {
         "calendar"
     } else {
         "reminder"

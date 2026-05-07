@@ -7,6 +7,7 @@ import {
   saveCalendarSyncConfig,
   listCalendars,
   syncCalendar,
+  requestCalendarPermission,
 } from "../../lib/tauri";
 import {
   Select,
@@ -18,8 +19,8 @@ import {
 
 const DEFAULT_CONFIG: CalendarSyncConfig = {
   enabled: false,
-  direction: "ToCalendar",
-  targetType: "Reminder",
+  direction: "toCalendar",
+  targetType: "reminder",
   targetCalendarId: null,
 };
 
@@ -30,6 +31,7 @@ export function CalendarSyncPanel() {
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   useEffect(() => {
     getCalendarSyncConfig()
@@ -42,7 +44,14 @@ export function CalendarSyncPanel() {
     if (!config.enabled) return;
     listCalendars(config.targetType)
       .then(setCalendars)
-      .catch(() => setCalendars([]));
+      .catch((e) => {
+        if (String(e).includes("permission")) {
+          setPermissionDenied(true);
+          setCalendars([]);
+        } else {
+          setError(String(e));
+        }
+      });
   }, [config.enabled, config.targetType]);
 
   const updateConfig = useCallback(
@@ -96,7 +105,7 @@ export function CalendarSyncPanel() {
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">目标类型</label>
             <div className="flex gap-4">
-              {(["Reminder", "CalendarEvent"] as const).map((t) => (
+              {(["reminder", "calendarEvent"] as const).map((t) => (
                 <label key={t} className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-700">
                   <input
                     type="radio"
@@ -106,7 +115,7 @@ export function CalendarSyncPanel() {
                     onChange={() => updateConfig({ targetType: t, targetCalendarId: null })}
                     className="accent-slate-600"
                   />
-                  {t === "Reminder" ? "提醒事项" : "日历事件"}
+                  {t === "reminder" ? "提醒事项" : "日历事件"}
                 </label>
               ))}
             </div>
@@ -115,6 +124,30 @@ export function CalendarSyncPanel() {
           {/* 目标日历本 */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">目标日历本</label>
+            {permissionDenied ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-red-600">尚未授权访问日历</p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const granted = await requestCalendarPermission();
+                      setPermissionDenied(!granted);
+                      if (granted) {
+                        listCalendars(config.targetType)
+                          .then(setCalendars)
+                          .catch(() => setCalendars([]));
+                      }
+                    } catch (e) {
+                      setError(String(e));
+                    }
+                  }}
+                  className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 transition text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 w-fit"
+                >
+                  请求权限
+                </button>
+              </div>
+            ) : (
             <Select
               value={config.targetCalendarId ?? ""}
               onValueChange={(v) => updateConfig({ targetCalendarId: v || null })}
@@ -130,6 +163,7 @@ export function CalendarSyncPanel() {
                 ))}
               </SelectContent>
             </Select>
+            )}
           </div>
 
           {/* 同步方向 */}
@@ -138,9 +172,9 @@ export function CalendarSyncPanel() {
             <div className="flex flex-col gap-1.5">
               {(
                 [
-                  ["ToCalendar", "仅推送到日历"],
-                  ["FromCalendar", "仅从日历导入"],
-                  ["Bidirectional", "双向同步"],
+                  ["toCalendar", "仅推送到日历"],
+                  ["fromCalendar", "仅从日历导入"],
+                  ["bidirectional", "双向同步"],
                 ] as const
               ).map(([val, label]) => (
                 <label key={val} className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-700">
