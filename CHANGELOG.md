@@ -5,6 +5,26 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.5] - 2026-05-07
+
+### 新增
+- macOS 日历同步功能（支持日历事件和提醒事项）
+- CalendarBridge Swift CLI 实现 EventKit 交互
+- CalendarSyncPanel 组件及设置对话框
+- 待办页面添加"Apple日历同步"按钮（仅 macOS 可见）
+- 日历同步配置管理（启用/禁用、目标类型、同步方向）
+- TodoRecord 添加日历同步相关字段
+
+### 修复
+- macOS 14+ 日历权限请求逻辑（区分事件和提醒事项权限）
+- Info.plist 日历权限描述配置
+
+### 测试
+- CalendarSync 配置和 TodoRecord 字段的 Rust 单元测试
+
+### 文档
+- macOS 日历同步设计规范
+
 ## [0.2.4] - 2026-04-28
 
 ### 新增
