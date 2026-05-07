@@ -87,6 +87,29 @@ description: 更新 CHANGELOG.md 并同步版本号到所有配置文件。自�
 
    使用 Edit 工具替换旧的版本号为新的版本号。
 
+9. **更新 README.md 核心特性**
+
+   如果本次版本有 `feat:` 类型的 commit，将新功能总结添加到 README.md 的「核心特性」部分。
+
+   **规则：**
+   - 只处理 `feat:` 前缀的 commit，其他类型跳过
+   - 如果没有 `feat:` commit，则不修改 README.md
+   - 将多个相关 commit 合并总结为一条特性描述
+   - 描述要简洁概括，不要原样复制 commit message
+   - 添加到「核心特性」列表的合适位置（按功能相关性排序）
+   - 保持与现有特性描述风格一致（使用 `**粗体** — 说明` 格式）
+
+   **示例：**
+   ```
+   # 如果有这些 commits：
+   feat: add calendar sync types and invoke functions to tauri.ts
+   feat: add CalendarSyncPanel component with tests
+   feat: move calendar sync to todo page and fix permission bug
+
+   # 在 README 核心特性中添加：
+   - **Apple 日历同步** — 待办事项可同步至 macOS 日历事件或提醒事项，支持双向同步（仅 macOS）
+   ```
+
 ## 输出要求
 
 - commit 描述要简洁，去掉前缀（如 `feat:`）
